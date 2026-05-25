@@ -13,6 +13,8 @@
     <!-- CSS: Tailwind for layout, Monospace fonts for 'Raw' look -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
@@ -32,9 +34,16 @@
             word-wrap: break-word;
         }
         .markdown-body code { white-space: pre-wrap; word-break: break-all; word-wrap: break-word; }
-        .markdown-body table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+        .markdown-body table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin-bottom: 1rem; }
+        .markdown-body table::-webkit-scrollbar { height: 4px; }
+        .markdown-body table::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        .markdown-body th, .markdown-body td { border: 1px solid #30363d; padding: 6px 10px; text-align: left; min-width: 100px; }
+        .markdown-body th { background-color: #161b22; color: #3b82f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .markdown-body tr:nth-child(2n) { background-color: rgba(48, 54, 61, 0.1); }
         .markdown-body img { max-width: 100%; height: auto; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
         .glass { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); border: 1px solid #30363d; }
+        *:focus-visible { outline: 2px solid #3b82f6 !important; outline-offset: 2px; }
         .chat-scroll::-webkit-scrollbar { width: 5px; }
         .chat-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
         .hidden { display: none !important; }
@@ -48,7 +57,7 @@
         .wave-bar:nth-child(2) { animation-delay: 0.2s; }
         .wave-bar:nth-child(3) { animation-delay: 0.4s; }
         .wave-bar:nth-child(4) { animation-delay: 0.1s; }
-        .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #8b949e; cursor: pointer; }
+        .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; }
         .code-copy-btn:hover { background: #444c56; color: #fff; }
 
         .toast {
@@ -57,7 +66,8 @@
             right: 24px;
             padding: 12px 20px;
             border-radius: 4px;
-            color: #e6edf3;
+            color: #ffffff;
+            font-weight: 500;
             font-size: 11px;
             z-index: 200;
             display: flex;
@@ -157,6 +167,8 @@
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
+    <!-- Skip Link for Keyboard Users -->
+    <a href="#chat-window" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded focus:font-bold">SKIP_TO_CHAT</a>
 
     <!-- Splash / Loading Screen -->
     <div id="splash-screen" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#0d1117] transition-opacity duration-500">
@@ -167,22 +179,22 @@
             </svg>
             <div class="absolute inset-0 border-2 border-blue-500/20 rounded-full animate-ping"></div>
         </div>
-        <div class="font-mono text-blue-400 text-sm tracking-[0.2em] animate-pulse">INITIALIZING_RAWCORE_AI...</div>
-        <div id="splash-status" class="mt-4 text-[10px] text-gray-500 font-mono uppercase">CONNECTING_TO_DATABASE</div>
+        <div class="font-mono text-blue-400 text-sm tracking-[0.2em] animate-pulse" role="status" aria-live="polite">INITIALIZING_RAWCORE_AI...</div>
+        <div id="splash-status" class="mt-4 text-[10px] text-gray-400 font-mono uppercase" aria-live="polite">CONNECTING_TO_DATABASE</div>
     </div>
 
     <!-- Auth Overlay -->
-    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-black p-4 overflow-y-auto hidden">
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-black p-4 overflow-y-auto hidden" role="dialog" aria-labelledby="auth-title">
         <div class="glass p-6 md:p-8 rounded-lg w-full max-w-md my-auto">
-            <h2 class="text-2xl mb-6 font-bold text-blue-400">RAWCORE_LOGIN</h2>
-            <input type="email" id="auth-email" placeholder="Email" class="w-full bg-transparent border border-gray-700 p-2 mb-4 rounded">
+            <h2 id="auth-title" class="text-2xl mb-6 font-bold text-blue-400">RAWCORE_LOGIN</h2>
+            <input type="email" id="auth-email" placeholder="Email" aria-label="Email address" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400">
             <div class="relative">
-                <input type="password" id="auth-password" placeholder="Password" class="w-full bg-transparent border border-gray-700 p-2 mb-4 rounded">
-                <button onclick="togglePassword()" class="absolute right-2 top-2 text-xs text-gray-500">VIEW</button>
+                <input type="password" id="auth-password" placeholder="Password" aria-label="Password" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400">
+                <button onclick="togglePassword()" aria-label="Toggle password visibility" class="absolute right-2 top-2 text-xs text-gray-400 hover:text-white">VIEW</button>
             </div>
             <div class="flex gap-2">
-                <button onclick="handleAuth('login')" class="flex-1 bg-blue-600 p-2 rounded hover:bg-blue-700">LOGIN</button>
-                <button onclick="handleAuth('signup')" class="flex-1 border border-blue-600 p-2 rounded hover:bg-blue-900">SIGNUP</button>
+                <button onclick="handleAuth('login')" aria-label="Log in" class="flex-1 bg-blue-600 p-2 rounded hover:bg-blue-700">LOGIN</button>
+                <button onclick="handleAuth('signup')" aria-label="Sign up" class="flex-1 border border-blue-600 p-2 rounded hover:bg-blue-900">SIGNUP</button>
             </div>
         </div>
     </div>
@@ -190,13 +202,14 @@
     <!-- Main Navigation -->
     <header class="border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
         <div class="flex items-center gap-1 sm:gap-3 overflow-hidden">
-            <button onclick="toggleSidebar()" class="md:hidden text-gray-400 text-xl p-2" aria-label="Menu">☰</button>
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-5 h-5 md:w-6 md:h-6 shrink-0" alt="Logo">
+            <button type="button" onclick="toggleSidebar()" class="md:hidden text-gray-400 text-xl p-2" aria-label="Toggle Sidebar Menu">☰</button>
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-5 h-5 md:w-6 md:h-6 shrink-0" alt="RawCore Logo">
             <div class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden xs:inline">[BETA]</span></div>
         </div>
         <div class="flex gap-1 md:gap-3 items-center shrink-0">
-            <button onclick="togglePanel('admin-panel')" id="admin-btn" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
-            <button onclick="logout()" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
+            <button type="button" onclick="togglePanel('help-panel')" id="help-btn" aria-label="Open User Guide" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">HELP</button>
+            <button type="button" onclick="togglePanel('admin-panel')" id="admin-btn" aria-label="Open Admin Configuration" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
+            <button type="button" onclick="logout()" aria-label="Logout" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
         </div>
     </header>
 
@@ -205,25 +218,25 @@
         <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
         <!-- Sidebar: History -->
-        <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:w-64 md:translate-x-0 md:static">
+        <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:w-64 md:translate-x-0 md:static" aria-label="Chat History Sidebar" role="complementary">
             <div class="space-y-2">
-                <button onclick="createNewChat(); toggleSidebar();" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm text-blue-400 font-bold">+ NEW_CHAT</button>
+                <button onclick="createNewChat(); toggleSidebar();" aria-label="Start a new chat" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm text-blue-400 font-bold">+ NEW_CHAT</button>
                 <div class="flex gap-1">
-                    <button id="manage-chats-btn" onclick="toggleSelectionMode()" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
-                    <button onclick="deleteAllChats()" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
+                    <button id="manage-chats-btn" onclick="toggleSelectionMode()" aria-label="Toggle batch management mode" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
+                    <button onclick="deleteAllChats()" aria-label="Clear all chat history" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
                 </div>
                 <div id="batch-actions" class="hidden flex gap-1">
-                    <button onclick="deleteSelectedChats()" class="flex-1 bg-red-900/40 border border-red-500 p-1 hover:bg-red-900/60 rounded text-[9px] text-red-200 transition-colors uppercase font-mono tracking-tighter">Delete Selected (<span id="selected-count">0</span>)</button>
-                    <button onclick="toggleSelectionMode()" class="border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors">CANCEL</button>
+                    <button onclick="deleteSelectedChats()" aria-label="Delete selected conversations" class="flex-1 bg-red-900/40 border border-red-500 p-1 hover:bg-red-900/60 rounded text-[9px] text-red-200 transition-colors uppercase font-mono tracking-tighter">Delete Selected (<span id="selected-count">0</span>)</button>
+                    <button onclick="toggleSelectionMode()" aria-label="Cancel management mode" class="border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors">CANCEL</button>
                 </div>
             </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto space-y-2 text-[11px] md:text-xs text-gray-400">
+            <div id="chat-history" class="flex-1 overflow-y-auto space-y-2 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
                 <!-- Chats will be injected here -->
             </div>
             
             <!-- Export Dropdown -->
             <div class="relative mt-auto pt-2" id="export-dropdown-container">
-                <button onclick="toggleExportMenu()" class="text-xs text-blue-400 underline text-left flex items-center gap-1 uppercase tracking-tighter">
+                <button onclick="toggleExportMenu()" aria-haspopup="true" aria-expanded="false" aria-label="Export conversation options" class="text-xs text-blue-400 underline text-left flex items-center gap-1 uppercase tracking-tighter">
                     EXPORT_CONVERSATION
                     <svg class="w-3 h-3 transition-transform duration-200" id="export-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
@@ -239,39 +252,39 @@
         <!-- Chat Area -->
         <section class="flex-1 flex flex-col relative w-full min-w-0 max-wide-container bg-black/20">
             <!-- Model Selectors -->
-            <div class="px-2 sm:px-4 py-2 border-b border-gray-800 flex gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap no-scrollbar items-center bg-black/50">
+            <div class="px-2 sm:px-4 py-2 border-b border-gray-800 flex gap-2 sm:gap-4 overflow-x-auto whitespace-nowrap no-scrollbar items-center bg-black/50" role="group" aria-label="AI Model Selection">
                 <div class="flex items-center gap-1">
-                    <span class="text-[8px] sm:text-[10px] text-gray-500 uppercase tracking-widest font-bold">MODEL:</span>
-                    <select id="text-model-select" class="bg-gray-900 text-[10px] sm:text-xs border border-gray-700 rounded p-1 focus:outline-none max-w-[120px] sm:max-w-none"></select>
+                    <span id="text-model-label" class="text-[8px] sm:text-[10px] text-gray-400 uppercase tracking-widest font-bold">MODEL:</span>
+                    <select id="text-model-select" aria-labelledby="text-model-label" class="bg-gray-900 text-[10px] sm:text-xs border border-gray-600 rounded p-1 focus:outline-none text-white max-w-[120px] sm:max-w-none"></select>
                 </div>
                 <div class="flex items-center gap-1">
-                    <span class="text-[8px] sm:text-[10px] text-gray-500 uppercase tracking-widest font-bold">VOICE:</span>
-                    <select id="stt-model-select" class="bg-gray-900 text-[10px] sm:text-xs border border-gray-700 rounded p-1 focus:outline-none max-w-[120px] sm:max-w-none"></select>
+                    <span id="stt-model-label" class="text-[8px] sm:text-[10px] text-gray-400 uppercase tracking-widest font-bold">VOICE:</span>
+                    <select id="stt-model-select" aria-labelledby="stt-model-label" class="bg-gray-900 text-[10px] sm:text-xs border border-gray-600 rounded p-1 focus:outline-none text-white max-w-[120px] sm:max-w-none"></select>
                 </div>
             </div>
 
-            <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll">
+            <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll" role="log" aria-live="polite" aria-relevant="additions">
                 <!-- Messages -->
             </div>
 
             <!-- Loading Indicator -->
-            <div id="ai-loading" class="hidden px-6 py-2 flex items-center gap-2 text-xs text-blue-400">
-                <div class="loader"></div> <span>AI_PROCESSING...</span>
+            <div id="ai-loading" class="hidden px-6 py-2 flex items-center gap-2 text-xs text-blue-400" role="status" aria-live="assertive">
+                <div class="loader"></div> <span id="loading-text">AI_PROCESSING...</span>
             </div>
 
             <!-- Input Area -->
             <div class="p-2 sm:p-4 border-t border-gray-800">
-                <div id="attachment-preview" class="flex flex-wrap gap-2 mb-2"></div>
+                <div id="attachment-preview" class="flex flex-wrap gap-2 mb-2" aria-label="Attached files preview"></div>
                 <div class="flex items-end gap-1 sm:gap-2 glass p-1 sm:p-2 rounded-lg">
-                    <label class="cursor-pointer p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
+                    <label aria-label="Upload files" class="cursor-pointer p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                         <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
                     </label>
-                    <textarea id="user-input" rows="1" class="flex-1 bg-transparent resize-none p-2 focus:outline-none text-[13px] sm:text-sm min-h-[40px] max-h-[200px]" placeholder="Ask anything..." onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); handleSendAction(); }"></textarea>
-                    <button onclick="startSpeech()" id="mic-btn" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
+                    <textarea id="user-input" rows="1" aria-label="Enter your message" class="flex-1 bg-transparent resize-none p-2 focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded text-[13px] sm:text-sm min-h-[40px] max-h-[200px]" placeholder="Ask anything..." onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); handleSendAction(); }"></textarea>
+                    <button onclick="startSpeech()" id="mic-btn" aria-label="Start voice input" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                     </button>
-                    <button onclick="handleSendAction()" id="send-btn" class="bg-blue-600 px-3 sm:px-4 py-2 rounded font-bold hover:bg-blue-500 text-[11px] sm:text-sm whitespace-nowrap shrink-0">SEND</button>
+                    <button onclick="handleSendAction()" id="send-btn" aria-label="Send message" class="bg-blue-600 px-3 sm:px-4 py-2 rounded font-bold hover:bg-blue-500 text-[11px] sm:text-sm whitespace-nowrap shrink-0">SEND</button>
                 </div>
             </div>
         </section>
@@ -292,34 +305,91 @@
         </div>
     </div>
 
+    <!-- Help Panel Modal -->
+    <div id="help-panel" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden p-4 md:p-10 overflow-y-auto" role="dialog" aria-labelledby="help-title">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-6 md:mb-8 border-b border-gray-800 pb-4">
+                <h2 id="help-title" class="text-xl md:text-3xl font-bold text-blue-400">SYSTEM_DOCUMENTATION</h2>
+                <button onclick="togglePanel('help-panel')" aria-label="Close help panel" class="text-red-500 font-bold text-sm hover:underline">[CLOSE_GUIDE]</button>
+            </div>
+            
+            <div class="space-y-8 font-mono text-sm leading-relaxed">
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">01_CORE_PHILOSOPHY</h3>
+                    <p class="text-gray-300">RawCore.AI is designed for unfiltered interaction. There are <span class="text-yellow-500">ZERO</span> hidden system prompts or pre-configurations. The AI responds exactly as the model architecture dictates based on your input. No filters, no guardrails beyond the model's native training.</p>
+                </section>
+
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">02_MODELS_AND_FAILOVER</h3>
+                    <ul class="list-disc list-inside space-y-2 text-gray-400">
+                        <li><span class="text-white">TEXT_MODELS:</span> Primary models for chat and reasoning. Select your preferred provider (Gemini/Groq) via the top dropdown.</li>
+                        <li><span class="text-white">VOICE_MODELS:</span> Dedicated Speech-to-Text models (Whisper/Gemini) used when recording audio.</li>
+                        <li><span class="text-white">FAILOVER_LOGIC:</span> If an API key encounters a Rate Limit (429) or Server Error (5xx), the system automatically cycles to the next key in the administrator's pool. This ensures maximum uptime without user intervention.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">03_FILE_ATTACHMENTS</h3>
+                    <ul class="list-disc list-inside space-y-2 text-gray-400">
+                        <li><span class="text-white">MULTI_MODAL:</span> Upload images for visual analysis (requires vision-capable models like Gemini-1.5).</li>
+                        <li><span class="text-white">CONTEXT_FEEDING:</span> Non-image files are attached as metadata/context to help the AI understand specific project files or documents.</li>
+                        <li><span class="text-white">METHODS:</span> Use the paperclip icon, drag-and-drop directly into the chat window, or paste images from your clipboard (Ctrl+V).</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">04_HISTORY_MANAGEMENT</h3>
+                    <ul class="list-disc list-inside space-y-2 text-gray-400">
+                        <li><span class="text-white">AUTOSAVE:</span> Every conversation is synced to your account. Titles are intelligently generated based on the first few exchanges.</li>
+                        <li><span class="text-white">MANAGE_MODE:</span> Click "MANAGE" in the sidebar to enter batch selection mode. Select multiple chats for bulk deletion.</li>
+                        <li><span class="text-white">CUSTOM_TITLES:</span> Use the pencil (✎) icon in the sidebar to manually rename any conversation.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">05_EXPORT_PORTABILITY</h3>
+                    <ul class="list-disc list-inside space-y-2 text-gray-400">
+                        <li><span class="text-white">WHOLE_CHAT:</span> Export to Markdown (.md), Plain Text (.txt), or PDF via the sidebar menu.</li>
+                        <li><span class="text-white">INDIVIDUAL_MESSAGES:</span> Use "COPY_RAW" to get the unformatted text or "EXPORT_PDF" for a single-message document.</li>
+                        <li><span class="text-white">CODE_SNIPPETS:</span> Every code block features an instant copy button for developer workflows.</li>
+                    </ul>
+                </section>
+
+                <div class="pt-6 border-t border-gray-800 text-[10px] text-gray-600">
+                    RAWCORE_VERSION: 1.0.0_BETA // ENGINE: FIREBASE_FIRESTORE // STATUS: OPERATIONAL
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Panel Modal -->
-    <div id="admin-panel" class="fixed inset-0 z-50 bg-black bg-opacity-90 hidden p-4 md:p-10 overflow-y-auto">
+    <div id="admin-panel" class="fixed inset-0 z-50 bg-black bg-opacity-90 hidden p-4 md:p-10 overflow-y-auto" role="dialog" aria-labelledby="admin-title">
         <div class="max-w-4xl mx-auto">
             <div class="flex justify-between items-center mb-6 md:mb-8">
-                <h2 class="text-xl md:text-3xl font-bold">ADMIN_CONFIGURATION</h2>
-                <button onclick="togglePanel('admin-panel')" class="text-red-500 font-bold text-sm">[CLOSE]</button>
+                <h2 id="admin-title" class="text-xl md:text-3xl font-bold">ADMIN_CONFIGURATION</h2>
+                <button onclick="togglePanel('admin-panel')" aria-label="Close admin panel" class="text-red-500 font-bold text-sm">[CLOSE]</button>
             </div>
             
             <div class="space-y-4 md:space-y-6">
                 <div>
-                    <label class="block text-xs md:text-sm text-gray-400 uppercase">GEMINI_API_KEYS</label>
-                    <textarea id="admin-gemini-keys" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
+                    <label for="admin-gemini-keys" class="block text-xs md:text-sm text-gray-400 uppercase">GEMINI_API_KEYS</label>
+                    <textarea id="admin-gemini-keys" aria-label="Gemini API Keys (comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
                 </div>
                 <div>
-                    <label class="block text-xs md:text-sm text-gray-400 uppercase">GROQ_API_KEYS</label>
-                    <textarea id="admin-groq-keys" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
+                    <label for="admin-groq-keys" class="block text-xs md:text-sm text-gray-400 uppercase">GROQ_API_KEYS</label>
+                    <textarea id="admin-groq-keys" aria-label="Groq API Keys (comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs md:text-sm text-gray-400 uppercase">TEXT_MODELS (provider:name)</label>
-                        <textarea id="admin-text-models" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20 md:h-24 text-sm" placeholder="gemini:gemini-1.5-flash, groq:llama3-8b-8192"></textarea>
+                        <label for="admin-text-models" class="block text-xs md:text-sm text-gray-400 uppercase">TEXT_MODELS (provider:name)</label>
+                        <textarea id="admin-text-models" aria-label="Available Text Models (provider:name, comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20 md:h-24 text-sm" placeholder="gemini:gemini-1.5-flash, groq:llama3-8b-8192"></textarea>
                     </div>
                     <div>
-                        <label class="block text-xs md:text-sm text-gray-400 uppercase">STT_MODELS (provider:name)</label>
-                        <textarea id="admin-stt-models" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20 md:h-24 text-sm" placeholder="groq:whisper-large-v3, gemini:speech-to-text"></textarea>
+                        <label for="admin-stt-models" class="block text-xs md:text-sm text-gray-400 uppercase">STT_MODELS (provider:name)</label>
+                        <textarea id="admin-stt-models" aria-label="Available Speech-to-Text Models (provider:name, comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20 md:h-24 text-sm" placeholder="groq:whisper-large-v3, gemini:speech-to-text"></textarea>
                     </div>
                 </div>
-                <button onclick="saveAdminSettings()" class="w-full bg-green-600 p-3 rounded font-bold">SAVE_CONFIG</button>
+                <button onclick="saveAdminSettings()" aria-label="Save administration settings" class="w-full bg-green-600 p-3 rounded font-bold">SAVE_CONFIG</button>
             </div>
         </div>
     </div>
@@ -380,14 +450,22 @@
 
         renderer.code = function(token, lang, escaped) {
             const codeContent = typeof token === 'object' ? token.text : token;
-            const language = typeof token === 'object' ? token.lang : lang;
+            const language = typeof token === 'object' ? (token.lang || 'plaintext') : (lang || 'plaintext');
             
-            // Ensure code block content is safely escaped
-            const escapedCode = (codeContent || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            let highlightedCode;
+            try {
+                if (language && hljs.getLanguage(language)) {
+                    highlightedCode = hljs.highlight(codeContent, { language }).value;
+                } else {
+                    highlightedCode = hljs.highlightAuto(codeContent).value;
+                }
+            } catch (__) {
+                highlightedCode = (codeContent || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            }
             
             const id = 'code-' + Math.random().toString(36).substr(2, 9);
             return `<div class="relative group max-w-full overflow-hidden my-2">
-                <pre class="max-w-full overflow-x-auto"><code class="language-${language || ''}" id="${id}">${escapedCode}</code></pre>
+                <pre class="max-w-full overflow-x-auto hljs"><code class="language-${language}" id="${id}">${highlightedCode}</code></pre>
                 <button onclick="window.copyToClipboard('${id}')" class="code-copy-btn">COPY</button>
             </div>`;
         };
@@ -404,6 +482,20 @@
             headerIds: false,
             mangle: false
         });
+
+        window.showLoading = (msg = "AI_PROCESSING...") => {
+            const el = document.getElementById('ai-loading');
+            const txt = document.getElementById('loading-text');
+            if (el && txt) {
+                txt.innerText = msg;
+                el.classList.remove('hidden');
+            }
+        };
+
+        window.hideLoading = () => {
+            const el = document.getElementById('ai-loading');
+            if (el) el.classList.add('hidden');
+        };
 
         window.showToast = (msg, type = 'info') => {
             const container = document.getElementById('toast-container') || (() => {
@@ -447,6 +539,7 @@
             const input = document.getElementById('modal-input');
             const cancelBtn = document.getElementById('modal-cancel-btn');
             const confirmBtn = document.getElementById('modal-confirm-btn');
+            const prevFocus = document.activeElement;
 
             titleEl.innerText = title || 'CONFIRM_ACTION';
             messageEl.innerText = message || '';
@@ -456,6 +549,19 @@
                 confirmBtn.onclick = null;
                 cancelBtn.onclick = null;
                 input.onkeydown = null;
+                document.removeEventListener('keydown', trapFocus);
+                if (prevFocus) prevFocus.focus();
+            };
+
+            const trapFocus = (e) => {
+                if (e.key === 'Escape') close();
+                if (e.key === 'Tab') {
+                    const focusables = Array.from(modal.querySelectorAll('button, input:not([type="hidden"])')).filter(el => !el.closest('.hidden'));
+                    const first = focusables[0];
+                    const last = focusables[focusables.length - 1];
+                    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                }
             };
 
             const handleConfirm = () => {
@@ -471,10 +577,10 @@
                 setTimeout(() => input.focus(), 100);
                 input.onkeydown = (e) => {
                     if (e.key === 'Enter') handleConfirm();
-                    if (e.key === 'Escape') close();
                 };
             } else {
                 inputContainer.classList.add('hidden');
+                setTimeout(() => confirmBtn.focus(), 100);
             }
 
             confirmBtn.innerText = confirmText || 'CONFIRM';
@@ -483,11 +589,13 @@
             confirmBtn.onclick = handleConfirm;
             cancelBtn.onclick = close;
             modal.classList.remove('hidden');
+            document.addEventListener('keydown', trapFocus);
         };
 
         window.toggleExportMenu = () => {
             const menu = document.getElementById('export-menu');
             const arrow = document.getElementById('export-arrow');
+            const btn = document.querySelector('[onclick="toggleExportMenu()"]');
             const container = document.getElementById('export-dropdown-container');
             
             const isHidden = menu.classList.contains('hidden');
@@ -495,8 +603,11 @@
             if (!isHidden) {
                 menu.classList.add('hidden');
                 arrow.style.transform = '';
+                if (btn) btn.setAttribute('aria-expanded', 'false');
                 return;
             }
+            
+            if (btn) btn.setAttribute('aria-expanded', 'true');
 
             // Boundary awareness logic
             const rect = container.getBoundingClientRect();
@@ -521,15 +632,46 @@
             menu.classList.remove('hidden');
             arrow.style.transform = 'rotate(180deg)';
 
-            // Global click to close
+            // Global click/key to close
             const closeMenu = (e) => {
-                if (!container.contains(e.target)) {
-                    menu.classList.add('hidden');
-                    arrow.style.transform = '';
-                    document.removeEventListener('click', closeMenu);
+                if (e && e.target && container.contains(e.target) && e.type === 'click') return;
+                
+                menu.classList.add('hidden');
+                arrow.style.transform = '';
+                if (btn) {
+                    btn.setAttribute('aria-expanded', 'false');
+                    btn.focus();
+                }
+                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('keydown', handleKey);
+            };
+
+            const handleKey = (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeMenu();
+                }
+                if (e.key === 'Tab') {
+                    const focusables = Array.from(menu.querySelectorAll('button'));
+                    const first = focusables[0];
+                    const last = focusables[focusables.length - 1];
+                    if (e.shiftKey && document.activeElement === first) {
+                        e.preventDefault();
+                        last.focus();
+                    } else if (!e.shiftKey && document.activeElement === last) {
+                        e.preventDefault();
+                        first.focus();
+                    }
                 }
             };
-            setTimeout(() => document.addEventListener('click', closeMenu), 1);
+
+            setTimeout(() => {
+                document.addEventListener('click', closeMenu);
+                document.addEventListener('keydown', handleKey);
+                // Focus first item
+                const first = menu.querySelector('button');
+                if (first) first.focus();
+            }, 10);
         };
 
         // --- AUTH FUNCTIONS ---
@@ -679,13 +821,27 @@
 
         // Auto-resize textarea logic
         const userInput = document.getElementById('user-input');
-        userInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-        });
+        const adjustHeight = (el) => {
+            if (!el) return;
+            // Prevent layout thrashing by using auto then scrollHeight
+            el.style.height = 'auto';
+            const nextHeight = el.scrollHeight;
+            el.style.height = nextHeight + 'px';
+            // Sync with CSS max-height (200px) to handle scrollbars correctly
+            if (nextHeight >= 200) {
+                el.style.overflowY = 'auto';
+            } else {
+                el.style.overflowY = 'hidden';
+            }
+        };
 
-        // Paste files as attachments logic
+        userInput.addEventListener('input', () => adjustHeight(userInput));
+
+        // Paste logic for files and auto-resize text
         userInput.addEventListener('paste', (e) => {
+            // Use requestAnimationFrame to ensure height is recalculated after browser renders pasted text
+            requestAnimationFrame(() => adjustHeight(userInput));
+            
             const items = e.clipboardData.items;
             const pastedFiles = [];
             for (let i = 0; i < items.length; i++) {
@@ -704,8 +860,9 @@
                 stopGeneration();
             } else {
                 sendMessage();
-                // Reset height after sending
-                userInput.style.height = 'auto';
+                // Reset height and overflow to defaults after sending
+                userInput.style.height = '';
+                userInput.style.overflowY = 'hidden';
             }
         };
 
@@ -722,8 +879,7 @@
             const attachmentData = [...attachments];
             if (!text && attachmentData.length === 0) return;
 
-            const loadingEl = document.getElementById('ai-loading');
-            loadingEl.classList.remove('hidden');
+            window.showLoading(attachmentData.length > 0 ? "UPLOADING_FILES..." : "AI_PROCESSING...");
             
             isGenerating = true;
             sendBtn.innerText = 'STOP';
@@ -760,6 +916,7 @@
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
 
+                window.showLoading("GENERATING_RESPONSE...");
                 const response = await callAIWithFailover(text, attachmentData, model, currentAbortController.signal);
                 appendMessage('bot', response);
                 
@@ -778,7 +935,7 @@
                     appendMessage('bot', "ERROR: " + err.message);
                 }
             } finally {
-                loadingEl.classList.add('hidden');
+                window.hideLoading();
                 isGenerating = false;
                 sendBtn.innerText = 'SEND';
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
@@ -884,33 +1041,35 @@
             div.className = `p-3 md:p-4 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col overflow-hidden`;
             
             const rawContent = document.createElement('div');
-            rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto no-scrollbar";
+            rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto";
             rawContent.innerHTML = marked.parse(content || "");
             
             const actionsDiv = document.createElement('div');
             actionsDiv.className = "flex gap-4 mt-2";
 
             const copyBtn = document.createElement('button');
+            copyBtn.setAttribute('aria-label', 'Copy raw message content');
             copyBtn.innerHTML = `
                 <div class="flex items-center gap-1">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
                     <span>COPY_RAW</span>
                 </div>
             `;
-            copyBtn.className = "text-[10px] text-gray-500 hover:text-white transition-colors";
+            copyBtn.className = "text-[10px] text-gray-400 hover:text-white focus:text-white transition-colors focus:outline-none";
             copyBtn.onclick = () => {
                 navigator.clipboard.writeText(content);
                 window.showToast("RAW_CONTENT_COPIED", "success");
             };
 
             const pdfBtn = document.createElement('button');
+            pdfBtn.setAttribute('aria-label', 'Export this message as PDF');
             pdfBtn.innerHTML = `
                 <div class="flex items-center gap-1">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                     <span>EXPORT_PDF</span>
                 </div>
             `;
-            pdfBtn.className = "text-[10px] text-gray-500 hover:text-blue-400 transition-colors";
+            pdfBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
             pdfBtn.onclick = () => window.exportSinglePDF(div);
 
             actionsDiv.appendChild(copyBtn);
@@ -965,8 +1124,7 @@
                     // Stop all tracks to release the microphone
                     stream.getTracks().forEach(track => track.stop());
 
-                    const loadingEl = document.getElementById('ai-loading');
-                    loadingEl.classList.remove('hidden');
+                    window.showLoading("TRANSCRIBING_AUDIO...");
                     
                     try {
                         const transcript = await processSTT(audioFile);
@@ -982,7 +1140,7 @@
                     } catch (err) {
                         window.showToast("STT_ERROR: " + err.message, "error");
                     } finally {
-                        loadingEl.classList.add('hidden');
+                        window.hideLoading();
                     }
                 };
 
@@ -1049,7 +1207,33 @@
         }
 
         // --- UTILS ---
-        window.togglePanel = (id) => document.getElementById(id).classList.toggle('hidden');
+        let panelPrevFocus = null;
+        window.togglePanel = (id) => {
+            const el = document.getElementById(id);
+            const isClosing = !el.classList.contains('hidden');
+            
+            if (isClosing) {
+                el.classList.add('hidden');
+                if (panelPrevFocus) {
+                    panelPrevFocus.focus();
+                    panelPrevFocus = null;
+                }
+            } else {
+                panelPrevFocus = document.activeElement;
+                el.classList.remove('hidden');
+                const first = el.querySelector('button, input, textarea, [tabindex="0"]');
+                if (first) setTimeout(() => first.focus(), 50);
+                
+                const handleEsc = (e) => {
+                    if (e.key === 'Escape') {
+                        el.classList.add('hidden');
+                        if (panelPrevFocus) panelPrevFocus.focus();
+                        document.removeEventListener('keydown', handleEsc);
+                    }
+                };
+                document.addEventListener('keydown', handleEsc);
+            }
+        };
         
         window.exportChat = (type) => {
             // Close menu
@@ -1326,6 +1510,7 @@
                 const d = chatDoc.data();
                 const container = document.createElement('div');
                 container.setAttribute('data-chat-id', chatDoc.id);
+                container.setAttribute('role', 'listitem');
                 const isBatchSelected = selectedChatIds.has(chatDoc.id);
                 const isActive = currentChatId === chatDoc.id;
                 
@@ -1333,13 +1518,14 @@
                 let borderClass = isBatchSelected ? 'border-blue-500/50' : (isActive && !isSelectionMode ? 'border-blue-500/40' : 'border-transparent hover:border-gray-700');
                 if (isBatchSelected) bgClass = 'bg-gray-800';
 
-                container.className = `group flex items-center justify-between p-2 rounded border transition-all cursor-pointer ${bgClass} ${borderClass}`;
+                container.className = `group flex items-center justify-between p-2 rounded border transition-all outline-none focus-within:ring-1 focus-within:ring-blue-500 ${bgClass} ${borderClass}`;
                 
                 if (isSelectionMode) {
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
-                    checkbox.className = 'mr-2 cursor-pointer shrink-0';
+                    checkbox.className = 'mr-2 cursor-pointer shrink-0 focus:ring-offset-0 focus:ring-blue-500';
                     checkbox.checked = isBatchSelected;
+                    checkbox.setAttribute('aria-label', `Select chat: ${d.title || 'Untitled'}`);
                     checkbox.onclick = (e) => e.stopPropagation();
                     checkbox.onchange = (e) => {
                         if (e.target.checked) selectedChatIds.add(chatDoc.id);
@@ -1349,21 +1535,20 @@
                         container.classList.toggle('bg-gray-800', e.target.checked);
                     };
                     container.appendChild(checkbox);
-                    container.onclick = () => {
-                        checkbox.checked = !checkbox.checked;
-                        checkbox.onchange({ target: checkbox });
-                    };
                 }
 
                 const titleBtn = document.createElement('button');
-                titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px]";
+                titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px] focus:outline-none";
                 titleBtn.innerText = d.title || "Untitled Chat";
                 if (!isSelectionMode) {
-                    titleBtn.onclick = () => loadSpecificChat(chatDoc.id);
+                    titleBtn.onclick = () => {
+                        loadSpecificChat(chatDoc.id);
+                        if(window.innerWidth < 768) window.toggleSidebar();
+                    };
                 }
                 
                 const actions = document.createElement('div');
-                actions.className = `flex gap-2 transition-opacity ${isSelectionMode ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`;
+                actions.className = `flex gap-2 transition-opacity ${isSelectionMode ? 'hidden' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`;
                 
                 const renBtn = document.createElement('button');
                 renBtn.innerHTML = "✎";
@@ -1538,9 +1723,9 @@
                     reader.onload = (e) => {
                         container.innerHTML = `
                             <div class="relative w-14 h-14 sm:w-16 sm:h-16 bg-gray-900 rounded border border-gray-700 overflow-hidden shadow-lg">
-                                <img src="${e.target.result}" class="w-full h-full object-cover">
-                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <button class="bg-red-600 text-white rounded-full p-1 remove-btn hover:scale-110 transition-transform">
+                                <img src="${e.target.result}" class="w-full h-full object-cover" alt="Attachment preview">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button type="button" aria-label="Remove image attachment ${f.name}" class="bg-red-600 text-white rounded-full p-1 remove-btn hover:scale-110 transition-transform focus:ring-2 focus:ring-white outline-none">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                     </button>
                                 </div>
@@ -1549,18 +1734,20 @@
                         container.querySelector('.remove-btn').addEventListener('click', () => {
                             container.remove();
                             attachments = attachments.filter(a => a !== f);
+                            document.getElementById('user-input').focus();
                         });
                     };
                     reader.readAsDataURL(f);
                 } else {
-                    container.className = "text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors";
+                    container.className = "text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors focus-within:ring-1 focus-within:ring-blue-500";
                     container.innerHTML = `
                         <span class="truncate max-w-[120px] text-gray-300 font-mono">${f.name}</span>
-                        <button class="text-red-500 hover:text-red-400 remove-btn font-bold">×</button>
+                        <button type="button" aria-label="Remove file attachment ${f.name}" class="text-red-500 hover:text-red-400 focus:outline-none focus:ring-1 focus:ring-red-500 rounded px-1 remove-btn font-bold">×</button>
                     `;
                     container.querySelector('.remove-btn').addEventListener('click', () => {
                         container.remove();
                         attachments = attachments.filter(a => a !== f);
+                        document.getElementById('user-input').focus();
                     });
                 }
                 preview.appendChild(container);
