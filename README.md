@@ -30,7 +30,7 @@ This project is a standalone web application using Firebase.
 ### 2. Firestore Security Rules
 Apply the following rules in the Firebase Console to ensure data privacy while allowing the admin panel to function:
 
-javascript```
+```javascript
 service cloud.firestore {
   match /databases/{database}/documents {
     // User profiles
@@ -56,7 +56,6 @@ service cloud.firestore {
     }
   }
 }
-```
 
 ### 3. Granting Admin Access
 1. Sign up a new account through the application UI.
