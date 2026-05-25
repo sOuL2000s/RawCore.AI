@@ -40,8 +40,42 @@
         .hidden { display: none !important; }
         .loader { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes wave {
+            0%, 100% { height: 4px; }
+            50% { height: 16px; }
+        }
+        .wave-bar { width: 2px; background: #ef4444; border-radius: 1px; animation: wave 1s ease-in-out infinite; }
+        .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.1s; }
         .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #8b949e; cursor: pointer; }
         .code-copy-btn:hover { background: #444c56; color: #fff; }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            color: #e6edf3;
+            font-size: 11px;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Fira Code', monospace;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+            border-left: 4px solid #3b82f6;
+            background: #161b22;
+            animation: slide-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes slide-in {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-success { border-left-color: #10b981; }
+        .toast-error { border-left-color: #ef4444; }
+        .toast-info { border-left-color: #3b82f6; }
         
         /* Smooth scrolling for chat window */
         #chat-window { scroll-behavior: smooth; }
@@ -49,6 +83,8 @@
         /* Utility for hiding scrollbars but keeping functionality */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .drag-over { border: 2px dashed #3b82f6 !important; background: rgba(59, 130, 246, 0.05) !important; position: relative; }
+        .drag-over::after { content: 'DROP_FILES_HERE'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.8); color: #3b82f6; font-weight: bold; font-size: 1.2rem; z-index: 100; pointer-events: none; }
 
         @media (max-width: 768px) {
             .sidebar-mobile { position: fixed; z-index: 40; height: 100%; transform: translateX(-100%); transition: transform 0.3s; width: 85%; max-width: 320px; }
@@ -62,29 +98,61 @@
             .max-wide-container { max-width: 1400px; margin: 0 auto; width: 100%; border-left: 1px solid #30363d; border-right: 1px solid #30363d; }
         }
 
-        /* Print Styles for PDF Export */
+        /* Print Styles for Native PDF Export (Ctrl+P) */
         @media print {
-            aside, header, #admin-btn, #mic-btn, #send-btn, .border-t, .model-selectors, #ai-loading, .code-copy-btn, .code-copy-btn + button, label {
+            aside, header, #admin-btn, #mic-btn, #send-btn, .border-t, .model-selectors, #ai-loading, .code-copy-btn, label, #batch-actions, .toast, #export-menu, .flex.gap-4.mt-2, #attachment-preview {
                 display: none !important;
             }
             body, main, #chat-window, .max-wide-container {
                 background: white !important;
-                color: black !important;
+                color: #000 !important;
                 height: auto !important;
                 overflow: visible !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
             }
             #chat-window {
                 padding: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
             }
             .markdown-body {
-                color: black !important;
+                color: #000 !important;
+                font-family: 'Fira Code', monospace !important;
+                font-size: 10pt !important;
+                line-height: 1.4 !important;
             }
-            .glass, .bg-gray-800, .bg-gray-900 {
+            .markdown-body pre {
+                background: #f4f4f4 !important;
+                color: #000 !important;
+                border: 1px solid #ddd !important;
+                padding: 8pt !important;
+                white-space: pre-wrap !important;
+                word-break: break-all !important;
+                font-size: 8.5pt !important;
+                margin: 8pt 0 !important;
+            }
+            .markdown-body code {
+                background: #f4f4f4 !important;
+                color: #d11141 !important;
+                font-size: 8.5pt !important;
+                padding: 1pt 3pt !important;
+            }
+            .bg-gray-800, .bg-gray-900 {
                 background: white !important;
-                border: 1px solid #eee !important;
-                margin-left: 0 !important;
-                margin-right: 0 !important;
+                border: none !important;
+                border-bottom: 1px solid #eee !important;
+                margin: 0 !important;
+                padding: 15pt 0 !important;
+                page-break-inside: avoid !important;
+                border-radius: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
             }
+            .bg-gray-800::before { content: ">>> USER_INPUT"; font-weight: bold; font-size: 7pt; color: #888; display: block; margin-bottom: 5pt; border-bottom: 1px dashed #eee; }
+            .bg-gray-900::before { content: ">>> RAWCORE_RESPONSE"; font-weight: bold; font-size: 7pt; color: #3b82f6; display: block; margin-bottom: 5pt; border-bottom: 1px dashed #eee; }
         }
     </style>
 </head>
@@ -138,7 +206,17 @@
 
         <!-- Sidebar: History -->
         <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:w-64 md:translate-x-0 md:static">
-            <button onclick="createNewChat(); toggleSidebar();" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm">+ NEW_CHAT</button>
+            <div class="space-y-2">
+                <button onclick="createNewChat(); toggleSidebar();" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm text-blue-400 font-bold">+ NEW_CHAT</button>
+                <div class="flex gap-1">
+                    <button id="manage-chats-btn" onclick="toggleSelectionMode()" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
+                    <button onclick="deleteAllChats()" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
+                </div>
+                <div id="batch-actions" class="hidden flex gap-1">
+                    <button onclick="deleteSelectedChats()" class="flex-1 bg-red-900/40 border border-red-500 p-1 hover:bg-red-900/60 rounded text-[9px] text-red-200 transition-colors uppercase font-mono tracking-tighter">Delete Selected (<span id="selected-count">0</span>)</button>
+                    <button onclick="toggleSelectionMode()" class="border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors">CANCEL</button>
+                </div>
+            </div>
             <div id="chat-history" class="flex-1 overflow-y-auto space-y-2 text-[11px] md:text-xs text-gray-400">
                 <!-- Chats will be injected here -->
             </div>
@@ -199,6 +277,21 @@
         </section>
     </main>
 
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-sm rounded-lg p-6">
+            <h3 id="modal-title" class="text-lg font-bold text-blue-400 mb-2 uppercase tracking-tighter">CONFIRM_ACTION</h3>
+            <p id="modal-message" class="text-sm text-gray-400 mb-6 leading-relaxed"></p>
+            <div id="modal-input-container" class="hidden mb-6">
+                <input type="text" id="modal-input" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="ENTER_VALUE">
+            </div>
+            <div class="flex justify-end gap-3">
+                <button id="modal-cancel-btn" class="px-4 py-2 text-xs font-bold text-gray-500 hover:text-white uppercase">CANCEL</button>
+                <button id="modal-confirm-btn" class="px-4 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase">CONFIRM</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Panel Modal -->
     <div id="admin-panel" class="fixed inset-0 z-50 bg-black bg-opacity-90 hidden p-4 md:p-10 overflow-y-auto">
         <div class="max-w-4xl mx-auto">
@@ -246,7 +339,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, addDoc, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, addDoc, query, where, onSnapshot, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
         // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
@@ -264,12 +357,17 @@
 
         // State
         let currentUser = null;
+        let userPrefs = {};
         let currentChatId = null;
         let config = { geminiKeys: [], groqKeys: [], textModels: [], sttModels: [] };
         let currentGeminiKeyIndex = 0;
         let currentGroqKeyIndex = 0;
         let isGenerating = false;
         let currentAbortController = null;
+        let isSelectionMode = false;
+        let selectedChatIds = new Set();
+        let chatHistoryUnsubscribe = null;
+        let lastChatSnapshot = null;
 
         // --- MARKED CUSTOMIZATION ---
         const renderer = new marked.Renderer();
@@ -307,21 +405,84 @@
             mangle: false
         });
 
+        window.showToast = (msg, type = 'info') => {
+            const container = document.getElementById('toast-container') || (() => {
+                const div = document.createElement('div');
+                div.id = 'toast-container';
+                div.className = 'fixed bottom-0 right-0 p-6 z-[100] pointer-events-none flex flex-col gap-2';
+                document.body.appendChild(div);
+                return div;
+            })();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type} pointer-events-auto`;
+            toast.innerHTML = `<span>${msg}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(20px)';
+                toast.style.transition = 'all 0.4s ease';
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        };
+
         window.copyToClipboard = (id) => {
             const text = document.getElementById(id).innerText;
             navigator.clipboard.writeText(text);
-            const btn = window.event ? (window.event.currentTarget || window.event.target) : null;
-            if (btn && (btn.tagName === 'BUTTON' || btn.closest('button'))) {
-                const target = btn.tagName === 'BUTTON' ? btn : btn.closest('button');
-                const original = target.innerText;
-                target.innerText = "COPIED!";
-                setTimeout(() => target.innerText = original, 2000);
-            }
+            window.showToast("CODE_COPIED", "success");
         };
 
         window.toggleSidebar = () => {
             document.getElementById('sidebar').classList.toggle('open');
             document.getElementById('sidebar-overlay').classList.toggle('open');
+        };
+
+        window.showCustomModal = ({ title, message, inputPlaceholder, inputValue, confirmText, confirmClass, onConfirm }) => {
+            const modal = document.getElementById('custom-modal');
+            const titleEl = document.getElementById('modal-title');
+            const messageEl = document.getElementById('modal-message');
+            const inputContainer = document.getElementById('modal-input-container');
+            const input = document.getElementById('modal-input');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+
+            titleEl.innerText = title || 'CONFIRM_ACTION';
+            messageEl.innerText = message || '';
+            
+            const close = () => {
+                modal.classList.add('hidden');
+                confirmBtn.onclick = null;
+                cancelBtn.onclick = null;
+                input.onkeydown = null;
+            };
+
+            const handleConfirm = () => {
+                const value = inputContainer.classList.contains('hidden') ? true : input.value;
+                onConfirm(value);
+                close();
+            };
+
+            if (inputPlaceholder !== undefined) {
+                inputContainer.classList.remove('hidden');
+                input.placeholder = inputPlaceholder;
+                input.value = inputValue || '';
+                setTimeout(() => input.focus(), 100);
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') handleConfirm();
+                    if (e.key === 'Escape') close();
+                };
+            } else {
+                inputContainer.classList.add('hidden');
+            }
+
+            confirmBtn.innerText = confirmText || 'CONFIRM';
+            confirmBtn.className = `px-4 py-2 text-xs font-bold rounded uppercase ${confirmClass || 'bg-blue-600 hover:bg-blue-500'}`;
+
+            confirmBtn.onclick = handleConfirm;
+            cancelBtn.onclick = close;
+            modal.classList.remove('hidden');
         };
 
         window.toggleExportMenu = () => {
@@ -388,7 +549,8 @@
                     });
                 }
                 document.getElementById('auth-screen').classList.add('hidden');
-            } catch (e) { alert(e.message); }
+                window.showToast("AUTH_SUCCESS", "success");
+            } catch (e) { window.showToast(e.message, "error"); }
         };
 
         window.logout = () => signOut(auth);
@@ -410,12 +572,20 @@
                 
                 try {
                     const userDoc = await getDoc(doc(db, "users", user.uid));
-                    if (userDoc.exists() && userDoc.data().isAdmin === true) {
-                        document.getElementById('admin-btn').classList.remove('hidden');
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        userPrefs = userData.preferences || {};
+                        if (userData.isAdmin === true) {
+                            document.getElementById('admin-btn').classList.remove('hidden');
+                        } else {
+                            document.getElementById('admin-btn').classList.add('hidden');
+                        }
                     } else {
+                        userPrefs = {};
                         document.getElementById('admin-btn').classList.add('hidden');
                     }
                 } catch (err) {
+                    userPrefs = {};
                     document.getElementById('admin-btn').classList.add('hidden');
                 }
 
@@ -456,9 +626,21 @@
                 sttModels: document.getElementById('admin-stt-models').value.split(',').map(s => s.trim()).filter(Boolean),
             };
             await setDoc(doc(db, "settings", "main"), data);
-            alert("Settings Saved");
-            location.reload();
+            window.showToast("CONFIG_SAVED", "success");
+            setTimeout(() => location.reload(), 1000);
         };
+
+        async function saveUserPreference(key, value) {
+            if (!currentUser) return;
+            userPrefs[key] = value;
+            try {
+                await updateDoc(doc(db, "users", currentUser.uid), {
+                    [`preferences.${key}`]: value
+                });
+            } catch (e) {
+                console.error("Failed to save preference:", e);
+            }
+        }
 
         function populateSelectors() {
             const tSelect = document.getElementById('text-model-select');
@@ -466,6 +648,18 @@
             tSelect.innerHTML = config.textModels.map(m => `<option value="${m}">${m.split(':')[1] || m}</option>`).join('');
             sSelect.innerHTML = config.sttModels.map(m => `<option value="${m}">${m.split(':')[1] || m}</option>`).join('');
             
+            // Apply preferences
+            if (userPrefs.defaultTextModel && config.textModels.includes(userPrefs.defaultTextModel)) {
+                tSelect.value = userPrefs.defaultTextModel;
+            }
+            if (userPrefs.defaultSTTModel && config.sttModels.includes(userPrefs.defaultSTTModel)) {
+                sSelect.value = userPrefs.defaultSTTModel;
+            }
+
+            // Listeners for persistence
+            tSelect.onchange = (e) => saveUserPreference('defaultTextModel', e.target.value);
+            sSelect.onchange = (e) => saveUserPreference('defaultSTTModel', e.target.value);
+
             // Fill admin fields if they are open
             document.getElementById('admin-gemini-keys').value = (config.geminiKeys || []).join(',');
             document.getElementById('admin-groq-keys').value = (config.groqKeys || []).join(',');
@@ -488,6 +682,21 @@
         userInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Paste files as attachments logic
+        userInput.addEventListener('paste', (e) => {
+            const items = e.clipboardData.items;
+            const pastedFiles = [];
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file') {
+                    const file = items[i].getAsFile();
+                    if (file) pastedFiles.push(file);
+                }
+            }
+            if (pastedFiles.length > 0) {
+                handleFiles(pastedFiles);
+            }
         });
 
         window.handleSendAction = () => {
@@ -523,11 +732,13 @@
 
             currentAbortController = new AbortController();
 
+            let isNewChat = false;
             if (!currentChatId) {
+                isNewChat = true;
                 const newChat = await addDoc(collection(db, "chats"), {
                     userId: currentUser.uid,
                     createdAt: Date.now(),
-                    title: text.substring(0, 30) || (attachmentData.length > 0 ? attachmentData[0].name : "New Conversation")
+                    title: "NEW_CONVERSATION..."
                 });
                 currentChatId = newChat.id;
             }
@@ -556,6 +767,10 @@
                 await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'bot', content: response, timestamp: userTimestamp + 10
                 });
+
+                if (isNewChat) {
+                    generateIntelligentTitle(currentChatId, text, response, model);
+                }
             } catch (err) {
                 if (err.name === 'AbortError') {
                     appendMessage('bot', "_Generation stopped by user._");
@@ -603,6 +818,23 @@
                 }
             }
             return "ERROR: ALL API KEYS FAILED OR EXHAUSTED.";
+        }
+
+        async function generateIntelligentTitle(chatId, userPrompt, aiResponse, modelValue) {
+            try {
+                const titlePrompt = `BASED_ON_THIS_USER_PROMPT: "${userPrompt.substring(0, 200)}" \nAND_AI_RESPONSE: "${aiResponse.substring(0, 200)}"\n\nGENERATE_A_CONCISE_DESCRIPTIVE_TITLE_FOR_THIS_CHAT. \n- MAX_5_WORDS\n- NO_QUOTES\n- NO_PERIODS\n- UPPERCASE_OR_RAW_STYLE\n- OUTPUT_ONLY_THE_TITLE`;
+                
+                const title = await callAIWithFailover(titlePrompt, [], modelValue, null);
+                const cleanTitle = title.replace(/["'#*]/g, "").trim().substring(0, 50);
+                if (cleanTitle && !cleanTitle.includes("ERROR:")) {
+                    await updateDoc(doc(db, "chats", chatId), { title: cleanTitle });
+                } else {
+                    const fallback = userPrompt.substring(0, 30).trim() || "NEW_CHAT";
+                    await updateDoc(doc(db, "chats", chatId), { title: fallback });
+                }
+            } catch (e) {
+                console.warn("Title generation failed:", e);
+            }
         }
 
         async function fetchGemini(prompt, files, model, key, signal) {
@@ -668,11 +900,7 @@
             copyBtn.className = "text-[10px] text-gray-500 hover:text-white transition-colors";
             copyBtn.onclick = () => {
                 navigator.clipboard.writeText(content);
-                const span = copyBtn.querySelector('span');
-                if (span) {
-                    span.innerText = "COPIED!";
-                    setTimeout(() => span.innerText = "COPY_RAW", 2000);
-                }
+                window.showToast("RAW_CONTENT_COPIED", "success");
             };
 
             const pdfBtn = document.createElement('button');
@@ -715,16 +943,21 @@
 
                 mediaRecorder.onstart = () => {
                     document.getElementById('mic-btn').innerHTML = `
-                        <svg class="w-5 h-5 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+                        <div class="flex items-center gap-0.5 h-5 w-5 justify-center">
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                        </div>
                     `;
-                    document.getElementById('mic-btn').classList.add('bg-red-900/20');
+                    document.getElementById('mic-btn').classList.add('bg-red-900/40', 'ring-1', 'ring-red-500/50');
                 };
 
                 mediaRecorder.onstop = async () => {
                     document.getElementById('mic-btn').innerHTML = `
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                     `;
-                    document.getElementById('mic-btn').classList.remove('bg-red-900/20');
+                    document.getElementById('mic-btn').classList.remove('bg-red-900/40', 'ring-1', 'ring-red-500/50');
                     
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
@@ -747,7 +980,7 @@
                             input.focus();
                         }
                     } catch (err) {
-                        alert("STT Error: " + err.message);
+                        window.showToast("STT_ERROR: " + err.message, "error");
                     } finally {
                         loadingEl.classList.add('hidden');
                     }
@@ -755,7 +988,7 @@
 
                 mediaRecorder.start();
             } catch (err) {
-                alert("Microphone access denied or not supported.");
+                window.showToast("MIC_ACCESS_DENIED", "error");
                 console.error(err);
             }
         };
@@ -829,58 +1062,122 @@
                                   .map(m => m.innerText).join('\n\n---\n\n');
             
             if (!messages || messages.trim() === "") {
-                alert("NO_MESSAGES_TO_EXPORT");
+                window.showToast("NO_MESSAGES_TO_EXPORT", "error");
                 return;
             }
 
             if (type === 'clipboard') {
                 navigator.clipboard.writeText(messages);
-                alert("COPIED_TO_CLIPBOARD");
+                window.showToast("FULL_CHAT_COPIED", "success");
                 return;
             }
 
             if (type === 'pdf') {
-                // html2pdf provides customizable client-side PDF generation (Puppeteer alternative for browsers)
                 const originalWindow = document.getElementById('chat-window');
-                const element = originalWindow.cloneNode(true);
+                const container = document.createElement('div');
+                container.style.padding = '40px';
+                container.style.background = 'white';
+                container.style.color = '#000';
+                container.style.width = '800px'; 
+                container.style.fontFamily = "'Fira Code', monospace";
+
+                // Header
+                const header = document.createElement('div');
+                header.style.borderBottom = '1px solid #000';
+                header.style.paddingBottom = '10px';
+                header.style.marginBottom = '20px';
+                header.style.display = 'flex';
+                header.style.justifyContent = 'space-between';
+                header.style.alignItems = 'baseline';
+                header.innerHTML = `
+                    <div style="font-weight: bold; font-size: 18pt; color: #3b82f6; letter-spacing: -1px;">RawCore.AI // EXPORT</div>
+                    <div style="font-size: 8pt; color: #666; font-family: monospace;">TIMESTAMP: ${new Date().toLocaleString().toUpperCase()}</div>
+                `;
+                container.appendChild(header);
+
+                const messagesClone = originalWindow.cloneNode(true);
+                messagesClone.style.display = 'block';
+                messagesClone.style.padding = '0';
                 
-                // CUSTOMIZATION: Modify the cloned element specifically for the PDF output
-                element.style.background = 'white';
-                element.style.color = 'black';
-                element.style.width = '100%';
-                element.style.height = 'auto';
-                element.style.padding = '20px';
-                element.style.fontFamily = 'serif'; // Example: change font for PDF
+                messagesClone.querySelectorAll('.code-copy-btn, button, .flex.gap-4.mt-2').forEach(el => el.remove());
                 
-                // Remove interactive components from the export
-                element.querySelectorAll('.code-copy-btn, button').forEach(el => el.remove());
-                
-                // Apply print-friendly styling to messages
-                element.querySelectorAll('.markdown-body').forEach(mb => {
-                    mb.style.color = 'black';
-                    mb.style.fontSize = '12px';
-                    mb.style.lineHeight = '1.5';
-                    
-                    // Ensure multi-line code blocks have white text since they maintain dark backgrounds
-                    mb.querySelectorAll('pre').forEach(pre => {
-                        pre.style.color = 'white';
-                        pre.querySelectorAll('code').forEach(c => c.style.color = 'white');
-                    });
-                    // Inline code (code not inside pre) will inherit the black color from mb.style.color
+                messagesClone.querySelectorAll('.bg-gray-800, .bg-gray-900').forEach(msg => {
+                    const isUser = msg.classList.contains('bg-gray-800');
+                    msg.style.backgroundColor = 'transparent';
+                    msg.style.border = 'none';
+                    msg.style.borderBottom = '1px solid #eee';
+                    msg.style.margin = '0';
+                    msg.style.padding = '20px 0';
+                    msg.style.pageBreakInside = 'avoid';
+                    msg.style.width = '100%';
+                    msg.style.maxWidth = '100%';
+                    msg.style.display = 'block';
+                    msg.className = '';
+
+                    const roleLabel = document.createElement('div');
+                    roleLabel.style.fontSize = '7pt';
+                    roleLabel.style.fontWeight = 'bold';
+                    roleLabel.style.marginBottom = '10px';
+                    roleLabel.style.color = isUser ? '#888' : '#3b82f6';
+                    roleLabel.style.borderBottom = '1px dashed #eee';
+                    roleLabel.style.paddingBottom = '4px';
+                    roleLabel.innerText = isUser ? '>>> USER_INPUT' : '>>> RAWCORE_RESPONSE';
+                    msg.prepend(roleLabel);
                 });
 
-                element.querySelectorAll('.bg-gray-800, .bg-gray-900').forEach(msg => {
-                    msg.style.backgroundColor = '#ffffff';
-                    msg.style.borderBottom = '1px solid #eeeeee';
-                    msg.style.color = 'black';
-                    msg.style.margin = '15px 0';
-                    msg.style.padding = '10px 0';
-                    // Reset responsive chat bubbles to full width for PDF
-                    msg.className = 'p-4'; 
+                messagesClone.querySelectorAll('.markdown-body').forEach(mb => {
+                    mb.style.color = '#000';
+                    mb.style.fontSize = '10pt';
+                    mb.style.lineHeight = '1.4';
+                    
+                    mb.querySelectorAll('pre').forEach(pre => {
+                        pre.style.background = '#f9f9f9';
+                        pre.style.color = '#000';
+                        pre.style.padding = '10pt';
+                        pre.style.border = '1px solid #eee';
+                        pre.style.borderRadius = '0';
+                        pre.style.fontSize = '8.5pt';
+                        pre.style.margin = '10pt 0';
+                        pre.style.whiteSpace = 'pre-wrap';
+                        pre.style.wordBreak = 'break-all';
+                        pre.style.overflow = 'visible';
+                        pre.querySelectorAll('code').forEach(c => {
+                            c.style.color = '#000';
+                            c.style.background = 'transparent';
+                        });
+                    });
+                    mb.querySelectorAll('code').forEach(c => {
+                        if (!c.parentElement.matches('pre')) {
+                            c.style.background = '#f4f4f4';
+                            c.style.color = '#d11141';
+                            c.style.padding = '1pt 3pt';
+                            c.style.borderRadius = '0';
+                        }
+                    });
+                    mb.querySelectorAll('table').forEach(t => {
+                        t.style.width = '100%';
+                        t.style.borderCollapse = 'collapse';
+                        t.style.margin = '10pt 0';
+                        t.style.fontSize = '8pt';
+                        t.querySelectorAll('th, td').forEach(cell => {
+                            cell.style.border = '1px solid #eee';
+                            cell.style.padding = '4pt';
+                        });
+                    });
                 });
+
+                container.appendChild(messagesClone);
+
+                const footer = document.createElement('div');
+                footer.style.marginTop = '20px';
+                footer.style.fontSize = '7pt';
+                footer.style.color = '#aaa';
+                footer.style.textAlign = 'center';
+                footer.innerText = "END_OF_DOCUMENT";
+                container.appendChild(footer);
 
                 const opt = {
-                    margin:       [15, 10, 15, 10], // top, left, bottom, right
+                    margin:       [15, 15],
                     filename:     `RawCore_Export_${new Date().getTime()}.pdf`,
                     image:        { type: 'jpeg', quality: 0.98 },
                     html2canvas:  { scale: 2, logging: false, useCORS: true },
@@ -888,8 +1185,7 @@
                     pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
                 };
 
-                // Generate and save
-                html2pdf().set(opt).from(element).save();
+                html2pdf().set(opt).from(container).save();
                 return;
             }
 
@@ -906,97 +1202,283 @@
         };
 
         window.exportSinglePDF = (messageDiv) => {
-            const element = messageDiv.cloneNode(true);
-            element.style.background = 'white';
-            element.style.color = 'black';
-            element.style.padding = '30px';
-            element.style.width = '100%';
-            element.style.margin = '0';
-            element.className = ''; // Remove chat bubble classes
+            const isUser = messageDiv.classList.contains('bg-gray-800');
+            const container = document.createElement('div');
+            container.style.padding = '40px';
+            container.style.background = 'white';
+            container.style.width = '800px';
+            container.style.fontFamily = "'Fira Code', monospace";
 
-            const content = element.querySelector('.markdown-body');
-            if (content) {
-                content.style.color = 'black';
-                content.querySelectorAll('pre').forEach(pre => {
-                    pre.style.color = 'white';
-                    pre.querySelectorAll('code').forEach(c => c.style.color = 'white');
+            const element = messageDiv.cloneNode(true);
+            element.style.background = 'transparent';
+            element.style.color = '#000';
+            element.style.padding = '0';
+            element.style.margin = '0';
+            element.className = ''; 
+
+            const roleLabel = document.createElement('div');
+            roleLabel.style.fontSize = '7pt';
+            roleLabel.style.fontWeight = 'bold';
+            roleLabel.style.marginBottom = '12px';
+            roleLabel.style.color = isUser ? '#888' : '#3b82f6';
+            roleLabel.style.borderBottom = '1px dashed #eee';
+            roleLabel.style.paddingBottom = '4px';
+            roleLabel.innerText = isUser ? '>>> USER_INPUT' : '>>> RAWCORE_RESPONSE';
+            element.prepend(roleLabel);
+
+            const mb = element.querySelector('.markdown-body');
+            if (mb) {
+                mb.style.color = '#000';
+                mb.style.fontSize = '10pt';
+                mb.style.lineHeight = '1.4';
+                mb.querySelectorAll('pre').forEach(pre => {
+                    pre.style.background = '#f9f9f9';
+                    pre.style.color = '#000';
+                    pre.style.padding = '10pt';
+                    pre.style.border = '1px solid #eee';
+                    pre.style.fontSize = '8.5pt';
+                    pre.style.whiteSpace = 'pre-wrap';
+                    pre.style.wordBreak = 'break-all';
+                    pre.querySelectorAll('code').forEach(c => c.style.color = '#000');
+                });
+                mb.querySelectorAll('code').forEach(c => {
+                    if (!c.parentElement.matches('pre')) {
+                        c.style.background = '#f4f4f4';
+                        c.style.color = '#d11141';
+                        c.style.padding = '1pt 3pt';
+                    }
+                });
+                mb.querySelectorAll('table').forEach(t => {
+                    t.style.width = '100%';
+                    t.style.borderCollapse = 'collapse';
+                    t.style.margin = '10pt 0';
+                    t.style.fontSize = '8pt';
+                    t.querySelectorAll('th, td').forEach(cell => {
+                        cell.style.border = '1px solid #eee';
+                        cell.style.padding = '4pt';
+                    });
                 });
             }
 
-            // Remove action buttons from PDF
             element.querySelectorAll('button, .flex.gap-4').forEach(el => el.remove());
+            container.appendChild(element);
+
+            const footer = document.createElement('div');
+            footer.style.marginTop = '30px';
+            footer.style.paddingTop = '10px';
+            footer.style.borderTop = '1px solid #eee';
+            footer.style.fontSize = '7pt';
+            footer.style.color = '#aaa';
+            footer.style.textAlign = 'right';
+            footer.innerText = `RAWCORE_SINGLE_MESSAGE_EXPORT // ${new Date().toLocaleString().toUpperCase()}`;
+            container.appendChild(footer);
 
             const opt = {
-                margin:       [15, 10, 15, 10],
+                margin:       [20, 20],
                 filename:     `RawCore_Message_${new Date().getTime()}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, logging: false, useCORS: true },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            html2pdf().set(opt).from(element).save();
+            html2pdf().set(opt).from(container).save();
         };
 
         window.createNewChat = () => {
             currentChatId = null;
             document.getElementById('chat-window').innerHTML = '';
+            // Clear visual active state in sidebar
+            document.querySelectorAll('#chat-history > div').forEach(div => {
+                div.classList.remove('bg-blue-600/10', 'border-blue-500/40');
+                div.classList.add('hover:bg-gray-800', 'border-transparent');
+            });
         };
 
-        async function loadChatHistory() {
-            const q = query(collection(db, "chats"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
-            onSnapshot(q, (snapshot) => {
-                const hist = document.getElementById('chat-history');
-                hist.innerHTML = '';
-                snapshot.forEach(chatDoc => {
-                    const d = chatDoc.data();
-                    const container = document.createElement('div');
-                    container.className = "group flex items-center justify-between p-2 hover:bg-gray-800 rounded border border-transparent hover:border-gray-700 transition-all cursor-pointer";
-                    
-                    const titleBtn = document.createElement('button');
-                    titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px]";
-                    titleBtn.innerText = d.title || "Untitled Chat";
-                    titleBtn.onclick = () => loadSpecificChat(chatDoc.id);
-                    
-                    const actions = document.createElement('div');
-                    actions.className = "flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity";
-                    
-                    const renBtn = document.createElement('button');
-                    renBtn.innerHTML = "✎";
-                    renBtn.className = "text-gray-500 hover:text-blue-400 text-xs";
-                    renBtn.title = "Rename";
-                    renBtn.onclick = (e) => { e.stopPropagation(); renameChat(chatDoc.id, d.title); };
-                    
-                    const delBtn = document.createElement('button');
-                    delBtn.innerHTML = "×";
-                    delBtn.className = "text-gray-500 hover:text-red-400 text-base leading-none";
-                    delBtn.title = "Delete";
-                    delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chatDoc.id); };
+        window.toggleSelectionMode = () => {
+            isSelectionMode = !isSelectionMode;
+            selectedChatIds.clear();
+            document.getElementById('batch-actions').classList.toggle('hidden', !isSelectionMode);
+            document.getElementById('manage-chats-btn').innerText = isSelectionMode ? 'EXIT_MANAGE' : 'Manage';
+            updateSelectedCount();
+            if (lastChatSnapshot) renderChatHistory(lastChatSnapshot);
+        };
 
-                    actions.appendChild(renBtn);
-                    actions.appendChild(delBtn);
-                    container.appendChild(titleBtn);
-                    container.appendChild(actions);
-                    hist.appendChild(container);
-                });
+        function updateSelectedCount() {
+            const countEl = document.getElementById('selected-count');
+            if (countEl) countEl.innerText = selectedChatIds.size;
+        }
+
+        async function loadChatHistory() {
+            if (!currentUser) return;
+            if (chatHistoryUnsubscribe) chatHistoryUnsubscribe();
+            const q = query(collection(db, "chats"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+            chatHistoryUnsubscribe = onSnapshot(q, (snapshot) => {
+                lastChatSnapshot = snapshot;
+                renderChatHistory(snapshot);
             });
         }
 
+        function renderChatHistory(snapshot) {
+            const hist = document.getElementById('chat-history');
+            if (!hist) return;
+            hist.innerHTML = '';
+            snapshot.forEach(chatDoc => {
+                const d = chatDoc.data();
+                const container = document.createElement('div');
+                container.setAttribute('data-chat-id', chatDoc.id);
+                const isBatchSelected = selectedChatIds.has(chatDoc.id);
+                const isActive = currentChatId === chatDoc.id;
+                
+                let bgClass = isActive && !isSelectionMode ? 'bg-blue-600/10' : 'hover:bg-gray-800';
+                let borderClass = isBatchSelected ? 'border-blue-500/50' : (isActive && !isSelectionMode ? 'border-blue-500/40' : 'border-transparent hover:border-gray-700');
+                if (isBatchSelected) bgClass = 'bg-gray-800';
+
+                container.className = `group flex items-center justify-between p-2 rounded border transition-all cursor-pointer ${bgClass} ${borderClass}`;
+                
+                if (isSelectionMode) {
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.className = 'mr-2 cursor-pointer shrink-0';
+                    checkbox.checked = isBatchSelected;
+                    checkbox.onclick = (e) => e.stopPropagation();
+                    checkbox.onchange = (e) => {
+                        if (e.target.checked) selectedChatIds.add(chatDoc.id);
+                        else selectedChatIds.delete(chatDoc.id);
+                        updateSelectedCount();
+                        container.classList.toggle('border-blue-500/50', e.target.checked);
+                        container.classList.toggle('bg-gray-800', e.target.checked);
+                    };
+                    container.appendChild(checkbox);
+                    container.onclick = () => {
+                        checkbox.checked = !checkbox.checked;
+                        checkbox.onchange({ target: checkbox });
+                    };
+                }
+
+                const titleBtn = document.createElement('button');
+                titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px]";
+                titleBtn.innerText = d.title || "Untitled Chat";
+                if (!isSelectionMode) {
+                    titleBtn.onclick = () => loadSpecificChat(chatDoc.id);
+                }
+                
+                const actions = document.createElement('div');
+                actions.className = `flex gap-2 transition-opacity ${isSelectionMode ? 'hidden' : 'opacity-0 group-hover:opacity-100'}`;
+                
+                const renBtn = document.createElement('button');
+                renBtn.innerHTML = "✎";
+                renBtn.className = "text-gray-500 hover:text-blue-400 text-xs";
+                renBtn.title = "Rename";
+                renBtn.onclick = (e) => { e.stopPropagation(); renameChat(chatDoc.id, d.title); };
+                
+                const delBtn = document.createElement('button');
+                delBtn.innerHTML = "×";
+                delBtn.className = "text-gray-500 hover:text-red-400 text-base leading-none";
+                delBtn.title = "Delete";
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chatDoc.id); };
+
+                actions.appendChild(renBtn);
+                actions.appendChild(delBtn);
+                container.appendChild(titleBtn);
+                container.appendChild(actions);
+                hist.appendChild(container);
+            });
+        }
+
+        window.deleteSelectedChats = async () => {
+            if (selectedChatIds.size === 0) return;
+            window.showCustomModal({
+                title: 'DELETE_MULTIPLE',
+                message: `PERMANENTLY_DELETE_${selectedChatIds.size}_CONVERSATIONS?`,
+                confirmText: 'DELETE',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: async () => {
+                    try {
+                        const batch = writeBatch(db);
+                        selectedChatIds.forEach(id => {
+                            batch.delete(doc(db, "chats", id));
+                            if (currentChatId === id) createNewChat();
+                        });
+                        await batch.commit();
+                        window.showToast("CHATS_DELETED", "success");
+                        toggleSelectionMode();
+                    } catch (e) {
+                        console.error("Batch delete failed:", e);
+                        window.showToast("DELETE_FAILED", "error");
+                    }
+                }
+            });
+        };
+
         window.renameChat = async (id, oldTitle) => {
-            const title = prompt("RENAME_CHAT:", oldTitle);
-            if (title && title.trim() && title !== oldTitle) {
-                await updateDoc(doc(db, "chats", id), { title: title.trim() });
-            }
+            window.showCustomModal({
+                title: 'RENAME_CHAT',
+                message: 'ENTER_NEW_TITLE_FOR_CONVERSATION',
+                inputPlaceholder: 'CHAT_TITLE',
+                inputValue: oldTitle,
+                confirmText: 'SAVE',
+                onConfirm: async (title) => {
+                    if (title && title.trim() && title !== oldTitle) {
+                        await updateDoc(doc(db, "chats", id), { title: title.trim() });
+                    }
+                }
+            });
         };
 
         window.deleteChat = async (id) => {
-            if (confirm("DELETE_CONVERSATION_PERMANENTLY?")) {
-                await deleteDoc(doc(db, "chats", id));
-                if (currentChatId === id) createNewChat();
-            }
+            window.showCustomModal({
+                title: 'DELETE_CHAT',
+                message: 'PERMANENTLY_DELETE_THIS_CONVERSATION?',
+                confirmText: 'DELETE',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: async () => {
+                    await deleteDoc(doc(db, "chats", id));
+                    window.showToast("CHAT_DELETED", "success");
+                    if (currentChatId === id) createNewChat();
+                }
+            });
+        };
+
+        window.deleteAllChats = async () => {
+            if (!currentUser) return;
+            window.showCustomModal({
+                title: 'CLEAR_HISTORY',
+                message: 'DELETE_ALL_CONVERSATIONS_PERMANENTLY? THIS_ACTION_CANNOT_BE_UNDONE.',
+                confirmText: 'DELETE_ALL',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: async () => {
+                    try {
+                        const q = query(collection(db, "chats"), where("userId", "==", currentUser.uid));
+                        const snapshot = await getDocs(q);
+                        const batch = writeBatch(db);
+                        snapshot.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        await batch.commit();
+                        window.showToast("HISTORY_CLEARED", "success");
+                        createNewChat();
+                    } catch (e) {
+                        console.error("Delete all failed:", e);
+                        window.showToast("DELETE_ALL_FAILED", "error");
+                    }
+                }
+            });
         };
 
         async function loadSpecificChat(id) {
             currentChatId = id;
+            // Update visual active state in sidebar
+            document.querySelectorAll('#chat-history > div').forEach(div => {
+                const isThis = div.getAttribute('data-chat-id') === id;
+                if (isThis && !isSelectionMode) {
+                    div.classList.add('bg-blue-600/10', 'border-blue-500/40');
+                    div.classList.remove('hover:bg-gray-800', 'border-transparent');
+                } else if (!isSelectionMode) {
+                    div.classList.remove('bg-blue-600/10', 'border-blue-500/40');
+                    div.classList.add('hover:bg-gray-800', 'border-transparent');
+                }
+            });
+
             const win = document.getElementById('chat-window');
             win.innerHTML = '';
             try {
@@ -1011,16 +1493,77 @@
             }
         }
 
-        // Handle File Mockup (Raw approach: just logs names, requires Firebase Storage for real use)
+        // Drag and Drop implementation
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.querySelector('section.flex-1');
+            if (dropZone) {
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }, false);
+                });
+
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.add('drag-over');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.remove('drag-over');
+                    }, false);
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    handleFiles(files);
+                }, false);
+            }
+        });
+
+        // Handle File Attachments with Image Previews
         let attachments = [];
         window.handleFiles = (files) => {
             const preview = document.getElementById('attachment-preview');
             Array.from(files).forEach(f => {
                 attachments.push(f);
-                const span = document.createElement('span');
-                span.className = "text-[10px] bg-gray-700 p-1 px-2 rounded flex items-center gap-1";
-                span.innerHTML = `<span>${f.name}</span><button onclick="this.parentElement.remove(); attachments = attachments.filter(a => a !== f);" class="text-red-400 ml-1">×</button>`;
-                preview.appendChild(span);
+                const container = document.createElement('div');
+                container.className = "relative group flex items-center shrink-0";
+                
+                if (f.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        container.innerHTML = `
+                            <div class="relative w-14 h-14 sm:w-16 sm:h-16 bg-gray-900 rounded border border-gray-700 overflow-hidden shadow-lg">
+                                <img src="${e.target.result}" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <button class="bg-red-600 text-white rounded-full p-1 remove-btn hover:scale-110 transition-transform">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        container.querySelector('.remove-btn').addEventListener('click', () => {
+                            container.remove();
+                            attachments = attachments.filter(a => a !== f);
+                        });
+                    };
+                    reader.readAsDataURL(f);
+                } else {
+                    container.className = "text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors";
+                    container.innerHTML = `
+                        <span class="truncate max-w-[120px] text-gray-300 font-mono">${f.name}</span>
+                        <button class="text-red-500 hover:text-red-400 remove-btn font-bold">×</button>
+                    `;
+                    container.querySelector('.remove-btn').addEventListener('click', () => {
+                        container.remove();
+                        attachments = attachments.filter(a => a !== f);
+                    });
+                }
+                preview.appendChild(container);
             });
         };
 
