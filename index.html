@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RawCore.AI</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E">
+    <!-- CSS: Tailwind for layout, Monospace fonts for 'Raw' look -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Fira Code', monospace; background-color: #0d1117; color: #e6edf3; }
+        .markdown-body pre { background: #161b22; padding: 1rem; border-radius: 5px; overflow-x: auto; position: relative; }
+        .glass { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); border: 1px solid #30363d; }
+        .chat-scroll::-webkit-scrollbar { width: 5px; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        .hidden { display: none !important; }
+        .loader { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #8b949e; cursor: pointer; }
+        .code-copy-btn:hover { background: #444c56; color: #fff; }
+        @media (max-width: 768px) {
+            .sidebar-mobile { position: fixed; z-index: 40; height: 100%; transform: translateX(-100%); transition: transform 0.3s; }
+            .sidebar-mobile.open { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Auth Overlay -->
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div class="glass p-8 rounded-lg w-96">
+            <h2 class="text-2xl mb-6 font-bold text-blue-400">RAWCORE_LOGIN</h2>
+            <input type="email" id="auth-email" placeholder="Email" class="w-full bg-transparent border border-gray-700 p-2 mb-4 rounded">
+            <div class="relative">
+                <input type="password" id="auth-password" placeholder="Password" class="w-full bg-transparent border border-gray-700 p-2 mb-4 rounded">
+                <button onclick="togglePassword()" class="absolute right-2 top-2 text-xs text-gray-500">VIEW</button>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="handleAuth('login')" class="flex-1 bg-blue-600 p-2 rounded hover:bg-blue-700">LOGIN</button>
+                <button onclick="handleAuth('signup')" class="flex-1 border border-blue-600 p-2 rounded hover:bg-blue-900">SIGNUP</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation -->
+    <header class="border-b border-gray-800 p-4 flex justify-between items-center bg-black">
+        <div class="flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="md:hidden text-gray-400">☰</button>
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-6 h-6" alt="Logo">
+            <div class="font-bold text-xl tracking-tighter">RawCore.AI [BETA]</div>
+        </div>
+        <div class="flex gap-2 md:gap-4 items-center">
+            <button onclick="togglePanel('admin-panel')" id="admin-btn" class="hidden text-[10px] md:text-xs text-yellow-500 border border-yellow-500 px-2 py-1 rounded">ADMIN</button>
+            <button onclick="logout()" class="text-[10px] md:text-xs text-red-500 border border-red-500 px-2 py-1 rounded">LOGOUT</button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden relative">
+        <!-- Sidebar: History -->
+        <aside id="sidebar" class="sidebar-mobile w-64 border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:translate-x-0 md:static">
+            <button onclick="createNewChat(); toggleSidebar();" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm">+ NEW_CHAT</button>
+            <div id="chat-history" class="flex-1 overflow-y-auto space-y-2 text-xs text-gray-400">
+                <!-- Chats will be injected here -->
+            </div>
+            <button onclick="exportFullChat()" class="text-xs text-blue-400 underline">EXPORT_MARKDOWN</button>
+        </aside>
+
+        <!-- Chat Area -->
+        <section class="flex-1 flex flex-col relative w-full">
+            <!-- Model Selectors -->
+            <div class="p-2 border-b border-gray-800 flex gap-2 md:gap-4 overflow-x-auto">
+                <select id="text-model-select" class="bg-transparent text-[10px] md:text-xs border border-gray-700 rounded p-1"></select>
+                <select id="stt-model-select" class="bg-transparent text-[10px] md:text-xs border border-gray-700 rounded p-1"></select>
+            </div>
+
+            <div id="chat-window" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 chat-scroll">
+                <!-- Messages -->
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="ai-loading" class="hidden px-6 py-2 flex items-center gap-2 text-xs text-blue-400">
+                <div class="loader"></div> <span>AI_PROCESSING...</span>
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 border-t border-gray-800">
+                <div id="attachment-preview" class="flex flex-wrap gap-2 mb-2"></div>
+                <div class="flex items-end gap-2 glass p-2 rounded-lg">
+                    <label class="cursor-pointer p-2 hover:bg-gray-800 rounded">
+                        📎<input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
+                    </label>
+                    <textarea id="user-input" rows="1" class="flex-1 bg-transparent resize-none p-2 focus:outline-none text-sm" placeholder="Ask anything... (Shift+Enter for newline)" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
+                    <button onclick="startSpeech()" id="mic-btn" class="p-2 hover:bg-gray-800 rounded">🎤</button>
+                    <button onclick="sendMessage()" class="bg-blue-600 px-3 md:px-4 py-2 rounded font-bold hover:bg-blue-500 text-sm">SEND</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Admin Panel Modal -->
+    <div id="admin-panel" class="fixed inset-0 z-50 bg-black bg-opacity-90 hidden p-10 overflow-y-auto">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex justify-between mb-8">
+                <h2 class="text-3xl font-bold">ADMIN_CONFIGURATION</h2>
+                <button onclick="togglePanel('admin-panel')" class="text-red-500 font-bold">[CLOSE]</button>
+            </div>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm text-gray-400">GEMINI_API_KEYS (comma separated)</label>
+                    <textarea id="admin-gemini-keys" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20" placeholder="key1, key2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400">GROQ_API_KEYS (comma separated)</label>
+                    <textarea id="admin-groq-keys" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20" placeholder="key1, key2"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400">TEXT_MODELS (format: provider:name, e.g., groq:llama3-8b-8192)</label>
+                        <textarea id="admin-text-models" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-24" placeholder="gemini:gemini-1.5-flash, groq:llama3-8b-8192"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400">STT_MODELS (format: provider:name, e.g., groq:whisper-large-v3)</label>
+                        <textarea id="admin-stt-models" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-24" placeholder="groq:whisper-large-v3, gemini:speech-to-text"></textarea>
+                    </div>
+                </div>
+                <button onclick="saveAdminSettings()" class="w-full bg-green-600 p-3 rounded font-bold">SAVE_CONFIG</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, addDoc, query, where, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_2SivXvzam33aOyAxAD1S259mYKbS0zs",
+            authDomain: "ems-react-eb975.firebaseapp.com",
+            projectId: "ems-react-eb975",
+            storageBucket: "ems-react-eb975.firebasestorage.app",
+            messagingSenderId: "832754328611",
+            appId: "1:832754328611:web:4ca522e85564bab7fd7d96"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // State
+        let currentUser = null;
+        let currentChatId = null;
+        let config = { geminiKeys: [], groqKeys: [], textModels: [], sttModels: [] };
+        let currentGeminiKeyIndex = 0;
+        let currentGroqKeyIndex = 0;
+
+        // --- MARKED CUSTOMIZATION ---
+        const renderer = new marked.Renderer();
+        renderer.code = function(token, lang, escaped) {
+            // Support both older and newer versions of marked.js
+            const codeContent = typeof token === 'object' ? token.text : token;
+            const language = typeof token === 'object' ? token.lang : lang;
+            
+            const id = 'code-' + Math.random().toString(36).substr(2, 9);
+            return `<div class="relative group">
+                <pre><code class="language-${language || ''}" id="${id}">${codeContent}</code></pre>
+                <button onclick="window.copyToClipboard('${id}')" class="code-copy-btn">COPY</button>
+            </div>`;
+        };
+        marked.setOptions({ renderer: renderer });
+
+        window.copyToClipboard = (id) => {
+            const text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text);
+            const btn = event.target;
+            btn.innerText = "COPIED!";
+            setTimeout(() => btn.innerText = "COPY", 2000);
+        };
+
+        window.toggleSidebar = () => {
+            document.getElementById('sidebar').classList.toggle('open');
+        };
+
+        // --- AUTH FUNCTIONS ---
+        window.handleAuth = async (type) => {
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-password').value;
+            try {
+                if (type === 'login') {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+                    // Initialize user profile in Firestore
+                    await setDoc(doc(db, "users", cred.user.uid), {
+                        email: email,
+                        isAdmin: false, // Default to non-admin
+                        createdAt: Date.now()
+                    });
+                }
+                document.getElementById('auth-screen').classList.add('hidden');
+            } catch (e) { alert(e.message); }
+        };
+
+        window.logout = () => signOut(auth);
+
+        window.togglePassword = () => {
+            const el = document.getElementById('auth-password');
+            el.type = el.type === 'password' ? 'text' : 'password';
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('auth-screen').classList.add('hidden');
+                
+                try {
+                    const userDoc = await getDoc(doc(db, "users", user.uid));
+                    if (userDoc.exists() && userDoc.data().isAdmin === true) {
+                        document.getElementById('admin-btn').classList.remove('hidden');
+                    } else {
+                        document.getElementById('admin-btn').classList.add('hidden');
+                    }
+                } catch (err) {
+                    document.getElementById('admin-btn').classList.add('hidden');
+                }
+
+                loadConfig();
+                loadChatHistory();
+            } else {
+                currentUser = null;
+                currentChatId = null;
+                document.getElementById('chat-window').innerHTML = '';
+                document.getElementById('chat-history').innerHTML = '';
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('admin-btn').classList.add('hidden');
+            }
+        });
+
+        // --- ADMIN FUNCTIONS ---
+        async function loadConfig() {
+            const docRef = doc(db, "settings", "main");
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                config = docSnap.data();
+                populateSelectors();
+            }
+        }
+
+        window.saveAdminSettings = async () => {
+            const data = {
+                geminiKeys: document.getElementById('admin-gemini-keys').value.split(',').map(s => s.trim()).filter(Boolean),
+                groqKeys: document.getElementById('admin-groq-keys').value.split(',').map(s => s.trim()).filter(Boolean),
+                textModels: document.getElementById('admin-text-models').value.split(',').map(s => s.trim()).filter(Boolean),
+                sttModels: document.getElementById('admin-stt-models').value.split(',').map(s => s.trim()).filter(Boolean),
+            };
+            await setDoc(doc(db, "settings", "main"), data);
+            alert("Settings Saved");
+            location.reload();
+        };
+
+        function populateSelectors() {
+            const tSelect = document.getElementById('text-model-select');
+            const sSelect = document.getElementById('stt-model-select');
+            tSelect.innerHTML = config.textModels.map(m => `<option value="${m}">${m.split(':')[1] || m}</option>`).join('');
+            sSelect.innerHTML = config.sttModels.map(m => `<option value="${m}">${m.split(':')[1] || m}</option>`).join('');
+            
+            // Fill admin fields if they are open
+            document.getElementById('admin-gemini-keys').value = (config.geminiKeys || []).join(',');
+            document.getElementById('admin-groq-keys').value = (config.groqKeys || []).join(',');
+            document.getElementById('admin-text-models').value = (config.textModels || []).join(',');
+            document.getElementById('admin-stt-models').value = (config.sttModels || []).join(',');
+        }
+
+        // --- CHAT LOGIC ---
+        async function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        window.sendMessage = async () => {
+            const inputEl = document.getElementById('user-input');
+            const text = inputEl.value.trim();
+            const attachmentData = [...attachments];
+            if (!text && attachmentData.length === 0) return;
+
+            const loadingEl = document.getElementById('ai-loading');
+            loadingEl.classList.remove('hidden');
+
+            if (!currentChatId) {
+                const newChat = await addDoc(collection(db, "chats"), {
+                    userId: currentUser.uid,
+                    createdAt: Date.now(),
+                    title: text.substring(0, 30) || (attachmentData.length > 0 ? attachmentData[0].name : "New Conversation")
+                });
+                currentChatId = newChat.id;
+            }
+
+            const userDisplayContent = text + (attachmentData.length > 0 ? `\n\n📎 *Attachments:* ${attachmentData.map(f => f.name).join(', ')}` : '');
+            appendMessage('user', userDisplayContent);
+            
+            // Clear inputs immediately
+            inputEl.value = '';
+            attachments = [];
+            document.getElementById('attachment-preview').innerHTML = '';
+            
+            const model = document.getElementById('text-model-select').value;
+            
+            try {
+                // Save user message first to guarantee ordering in Firestore
+                const userTimestamp = Date.now();
+                await addDoc(collection(db, `chats/${currentChatId}/messages`), {
+                    role: 'user', content: userDisplayContent, timestamp: userTimestamp
+                });
+
+                const response = await callAIWithFailover(text, attachmentData, model);
+                appendMessage('bot', response);
+                
+                // Save bot response with distinct timestamp (ensuring it's after user)
+                await addDoc(collection(db, `chats/${currentChatId}/messages`), {
+                    role: 'bot', content: response, timestamp: userTimestamp + 10
+                });
+            } catch (err) {
+                appendMessage('bot', "ERROR: " + err.message);
+            } finally {
+                loadingEl.classList.add('hidden');
+            }
+        };
+
+        async function callAIWithFailover(prompt, files, modelValue) {
+            const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['gemini', modelValue];
+            const isGroq = provider.toLowerCase() === 'groq';
+            const keys = isGroq ? config.groqKeys : config.geminiKeys;
+            let keyIndex = isGroq ? currentGroqKeyIndex : currentGeminiKeyIndex;
+
+            if (!keys || keys.length === 0) return `ERROR: NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`;
+
+            for (let i = 0; i < keys.length; i++) {
+                const idx = (keyIndex + i) % keys.length;
+                const currentKey = keys[idx];
+                try {
+                    let response;
+                    if (isGroq) {
+                        const enrichedPrompt = files.length > 0 ? 
+                            `${prompt}\n\n[USER ATTACHED FILES: ${files.map(f => f.name).join(', ')}]` : prompt;
+                        response = await fetchGroq(enrichedPrompt, modelName, currentKey);
+                        currentGroqKeyIndex = idx;
+                    } else {
+                        response = await fetchGemini(prompt, files, modelName, currentKey);
+                        currentGeminiKeyIndex = idx;
+                    }
+                    return response;
+                } catch (err) {
+                    console.error(`${provider} Key ${idx} failed:`, err);
+                }
+            }
+            return "ERROR: ALL API KEYS FAILED OR EXHAUSTED.";
+        }
+
+        async function fetchGemini(prompt, files, model, key) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+            const parts = [{ text: prompt || "Analyzing provided content..." }];
+            
+            for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                    const b64 = await fileToBase64(file);
+                    parts.push({ inline_data: { mime_type: file.type, data: b64 } });
+                } else {
+                    parts[0].text += `\n[File Attachment: ${file.name}]`;
+                }
+            }
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: parts }] })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        async function fetchGroq(prompt, model, key) {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            return data.choices[0].message.content;
+        }
+
+        function appendMessage(role, content) {
+            const win = document.getElementById('chat-window');
+            const div = document.createElement('div');
+            div.className = `p-4 rounded-lg ${role === 'user' ? 'bg-gray-800 ml-12' : 'bg-gray-900 mr-12 border border-gray-800'}`;
+            
+            const rawContent = document.createElement('div');
+            rawContent.className = "markdown-body text-sm leading-relaxed";
+            rawContent.innerHTML = marked.parse(content);
+            
+            const copyBtn = document.createElement('button');
+            copyBtn.innerHTML = `
+                <div class="flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                    <span>COPY_RAW</span>
+                </div>
+            `;
+            copyBtn.className = "text-[10px] text-gray-500 mt-2 block hover:text-white transition-colors";
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(content);
+                const span = copyBtn.querySelector('span');
+                if (span) {
+                    span.innerText = "COPIED!";
+                    setTimeout(() => span.innerText = "COPY_RAW", 2000);
+                }
+            };
+
+            div.appendChild(rawContent);
+            div.appendChild(copyBtn);
+            win.appendChild(div);
+            win.scrollTop = win.scrollHeight;
+        }
+
+        // --- SPEECH TO TEXT (CUSTOM API IMPLEMENTATION) ---
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        window.startSpeech = async () => {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstart = () => {
+                    document.getElementById('mic-btn').innerText = '🛑';
+                    document.getElementById('mic-btn').classList.add('bg-red-900');
+                };
+
+                mediaRecorder.onstop = async () => {
+                    document.getElementById('mic-btn').innerText = '🎤';
+                    document.getElementById('mic-btn').classList.remove('bg-red-900');
+                    
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
+                    
+                    // Stop all tracks to release the microphone
+                    stream.getTracks().forEach(track => track.stop());
+
+                    const loadingEl = document.getElementById('ai-loading');
+                    loadingEl.classList.remove('hidden');
+                    
+                    try {
+                        const transcript = await processSTT(audioFile);
+                        if (transcript) {
+                            const input = document.getElementById('user-input');
+                            input.value += (input.value ? ' ' : '') + transcript;
+                        }
+                    } catch (err) {
+                        alert("STT Error: " + err.message);
+                    } finally {
+                        loadingEl.classList.add('hidden');
+                    }
+                };
+
+                mediaRecorder.start();
+            } catch (err) {
+                alert("Microphone access denied or not supported.");
+                console.error(err);
+            }
+        };
+
+        async function processSTT(audioFile) {
+            const modelValue = document.getElementById('stt-model-select').value;
+            const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['groq', modelValue];
+            const isGroq = provider.toLowerCase() === 'groq';
+            const keys = isGroq ? config.groqKeys : config.geminiKeys;
+            let keyIndex = isGroq ? currentGroqKeyIndex : currentGeminiKeyIndex;
+
+            if (!keys || keys.length === 0) throw new Error(`NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`);
+
+            for (let i = 0; i < keys.length; i++) {
+                const idx = (keyIndex + i) % keys.length;
+                const currentKey = keys[idx];
+                try {
+                    if (isGroq) {
+                        const formData = new FormData();
+                        formData.append('file', audioFile);
+                        formData.append('model', modelName || 'whisper-large-v3');
+                        
+                        const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${currentKey}` },
+                            body: formData
+                        });
+                        if (!res.ok) throw new Error(await res.text());
+                        const data = await res.json();
+                        currentGroqKeyIndex = idx;
+                        return data.text;
+                    } else {
+                        // Gemini STT via multimodal generateContent
+                        const b64 = await fileToBase64(audioFile);
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${currentKey}`;
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{
+                                    parts: [
+                                        { text: "Transcribe this audio exactly as heard. Output ONLY the transcription text." },
+                                        { inline_data: { mime_type: "audio/webm", data: b64 } }
+                                    ]
+                                }]
+                            })
+                        });
+                        if (!res.ok) throw new Error(await res.text());
+                        const data = await res.json();
+                        currentGeminiKeyIndex = idx;
+                        return data.candidates[0].content.parts[0].text;
+                    }
+                } catch (err) {
+                    console.warn(`${provider} STT Key ${idx} failed, trying next...`, err);
+                }
+            }
+            throw new Error("All STT API keys failed.");
+        }
+
+        // --- UTILS ---
+        window.togglePanel = (id) => document.getElementById(id).classList.toggle('hidden');
+        
+        window.exportFullChat = () => {
+            const messages = Array.from(document.querySelectorAll('.markdown-body'))
+                                  .map(m => m.innerText).join('\n\n---\n\n');
+            const blob = new Blob([messages], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_export_${Date.now()}.md`;
+            a.click();
+        };
+
+        window.createNewChat = () => {
+            currentChatId = null;
+            document.getElementById('chat-window').innerHTML = '';
+        };
+
+        async function loadChatHistory() {
+            const q = query(collection(db, "chats"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                const hist = document.getElementById('chat-history');
+                hist.innerHTML = '';
+                snapshot.forEach(chatDoc => {
+                    const d = chatDoc.data();
+                    const container = document.createElement('div');
+                    container.className = "group flex items-center justify-between p-2 hover:bg-gray-800 rounded border border-transparent hover:border-gray-700 transition-all cursor-pointer";
+                    
+                    const titleBtn = document.createElement('button');
+                    titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px]";
+                    titleBtn.innerText = d.title || "Untitled Chat";
+                    titleBtn.onclick = () => loadSpecificChat(chatDoc.id);
+                    
+                    const actions = document.createElement('div');
+                    actions.className = "flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity";
+                    
+                    const renBtn = document.createElement('button');
+                    renBtn.innerHTML = "✎";
+                    renBtn.className = "text-gray-500 hover:text-blue-400 text-xs";
+                    renBtn.title = "Rename";
+                    renBtn.onclick = (e) => { e.stopPropagation(); renameChat(chatDoc.id, d.title); };
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.innerHTML = "×";
+                    delBtn.className = "text-gray-500 hover:text-red-400 text-base leading-none";
+                    delBtn.title = "Delete";
+                    delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chatDoc.id); };
+
+                    actions.appendChild(renBtn);
+                    actions.appendChild(delBtn);
+                    container.appendChild(titleBtn);
+                    container.appendChild(actions);
+                    hist.appendChild(container);
+                });
+            });
+        }
+
+        window.renameChat = async (id, oldTitle) => {
+            const title = prompt("RENAME_CHAT:", oldTitle);
+            if (title && title.trim() && title !== oldTitle) {
+                await updateDoc(doc(db, "chats", id), { title: title.trim() });
+            }
+        };
+
+        window.deleteChat = async (id) => {
+            if (confirm("DELETE_CONVERSATION_PERMANENTLY?")) {
+                await deleteDoc(doc(db, "chats", id));
+                if (currentChatId === id) createNewChat();
+            }
+        };
+
+        async function loadSpecificChat(id) {
+            currentChatId = id;
+            const win = document.getElementById('chat-window');
+            win.innerHTML = '';
+            try {
+                const q = query(collection(db, `chats/${id}/messages`), orderBy("timestamp", "asc"));
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    appendMessage(data.role, data.content);
+                });
+            } catch (err) {
+                console.error("Error loading messages:", err);
+            }
+        }
+
+        // Handle File Mockup (Raw approach: just logs names, requires Firebase Storage for real use)
+        let attachments = [];
+        window.handleFiles = (files) => {
+            const preview = document.getElementById('attachment-preview');
+            Array.from(files).forEach(f => {
+                attachments.push(f);
+                const span = document.createElement('span');
+                span.className = "text-[10px] bg-gray-700 p-1 rounded";
+                span.innerText = f.name;
+                preview.appendChild(span);
+            });
+        };
+
+    </script>
+</body>
+</html>
