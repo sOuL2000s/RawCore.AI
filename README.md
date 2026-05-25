@@ -56,7 +56,7 @@ service cloud.firestore {
     }
   }
 }
-
+```
 ### 3. Granting Admin Access
 1. Sign up a new account through the application UI.
 2. Navigate to your Firestore **users** collection in the Firebase Console.
