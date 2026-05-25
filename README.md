@@ -1,4 +1,5 @@
 # RawCore.AI [BETA]
+**Live Demo:** [https://rawcoreai.netlify.app](https://rawcoreai.netlify.app)
 
 RawCore.AI is a high-performance, "raw" AI chatbot interface designed for direct interaction with Large Language Models without restrictive system prompts or heavy UI overhead. It features a robust multi-provider backend with automated failover logic and an integrated administrative control panel.
 

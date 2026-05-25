@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RawCore.AI</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="RawCore.AI">
     <!-- CSS: Tailwind for layout, Monospace fonts for 'Raw' look -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -88,12 +93,15 @@
             <div class="p-4 border-t border-gray-800">
                 <div id="attachment-preview" class="flex flex-wrap gap-2 mb-2"></div>
                 <div class="flex items-end gap-2 glass p-2 rounded-lg">
-                    <label class="cursor-pointer p-2 hover:bg-gray-800 rounded">
-                        📎<input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
+                    <label class="cursor-pointer p-2 hover:bg-gray-800 rounded flex items-center justify-center">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                        <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
                     </label>
-                    <textarea id="user-input" rows="1" class="flex-1 bg-transparent resize-none p-2 focus:outline-none text-sm" placeholder="Ask anything... (Shift+Enter for newline)" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); sendMessage(); }"></textarea>
-                    <button onclick="startSpeech()" id="mic-btn" class="p-2 hover:bg-gray-800 rounded">🎤</button>
-                    <button onclick="sendMessage()" class="bg-blue-600 px-3 md:px-4 py-2 rounded font-bold hover:bg-blue-500 text-sm">SEND</button>
+                    <textarea id="user-input" rows="1" class="flex-1 bg-transparent resize-none p-2 focus:outline-none text-sm" placeholder="Ask anything... (Shift+Enter for newline)" onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); handleSendAction(); }"></textarea>
+                    <button onclick="startSpeech()" id="mic-btn" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+                    <button onclick="handleSendAction()" id="send-btn" class="bg-blue-600 px-3 md:px-4 py-2 rounded font-bold hover:bg-blue-500 text-sm whitespace-nowrap">SEND</button>
                 </div>
             </div>
         </section>
@@ -131,6 +139,17 @@
         </div>
     </div>
 
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('SW_REGISTERED', reg.scope))
+                    .catch(err => console.error('SW_REGISTRATION_FAILED', err));
+            });
+        }
+    </script>
+
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
@@ -157,6 +176,8 @@
         let config = { geminiKeys: [], groqKeys: [], textModels: [], sttModels: [] };
         let currentGeminiKeyIndex = 0;
         let currentGroqKeyIndex = 0;
+        let isGenerating = false;
+        let currentAbortController = null;
 
         // --- MARKED CUSTOMIZATION ---
         const renderer = new marked.Renderer();
@@ -285,14 +306,36 @@
             });
         }
 
+        window.handleSendAction = () => {
+            if (isGenerating) {
+                stopGeneration();
+            } else {
+                sendMessage();
+            }
+        };
+
+        window.stopGeneration = () => {
+            if (currentAbortController) {
+                currentAbortController.abort();
+            }
+        };
+
         window.sendMessage = async () => {
             const inputEl = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
             const text = inputEl.value.trim();
             const attachmentData = [...attachments];
             if (!text && attachmentData.length === 0) return;
 
             const loadingEl = document.getElementById('ai-loading');
             loadingEl.classList.remove('hidden');
+            
+            isGenerating = true;
+            sendBtn.innerText = 'STOP';
+            sendBtn.classList.replace('bg-blue-600', 'bg-red-600');
+            sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+
+            currentAbortController = new AbortController();
 
             if (!currentChatId) {
                 const newChat = await addDoc(collection(db, "chats"), {
@@ -303,7 +346,7 @@
                 currentChatId = newChat.id;
             }
 
-            const userDisplayContent = text + (attachmentData.length > 0 ? `\n\n📎 *Attachments:* ${attachmentData.map(f => f.name).join(', ')}` : '');
+            const userDisplayContent = text + (attachmentData.length > 0 ? `\n\n[ATTACHMENTS: ${attachmentData.map(f => f.name).join(', ')}]` : '');
             appendMessage('user', userDisplayContent);
             
             // Clear inputs immediately
@@ -320,7 +363,7 @@
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
 
-                const response = await callAIWithFailover(text, attachmentData, model);
+                const response = await callAIWithFailover(text, attachmentData, model, currentAbortController.signal);
                 appendMessage('bot', response);
                 
                 // Save bot response with distinct timestamp (ensuring it's after user)
@@ -328,13 +371,22 @@
                     role: 'bot', content: response, timestamp: userTimestamp + 10
                 });
             } catch (err) {
-                appendMessage('bot', "ERROR: " + err.message);
+                if (err.name === 'AbortError') {
+                    appendMessage('bot', "_Generation stopped by user._");
+                } else {
+                    appendMessage('bot', "ERROR: " + err.message);
+                }
             } finally {
                 loadingEl.classList.add('hidden');
+                isGenerating = false;
+                sendBtn.innerText = 'SEND';
+                sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                currentAbortController = null;
             }
         };
 
-        async function callAIWithFailover(prompt, files, modelValue) {
+        async function callAIWithFailover(prompt, files, modelValue, signal) {
             const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['gemini', modelValue];
             const isGroq = provider.toLowerCase() === 'groq';
             const keys = isGroq ? config.groqKeys : config.geminiKeys;
@@ -343,6 +395,8 @@
             if (!keys || keys.length === 0) return `ERROR: NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`;
 
             for (let i = 0; i < keys.length; i++) {
+                if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
+                
                 const idx = (keyIndex + i) % keys.length;
                 const currentKey = keys[idx];
                 try {
@@ -350,21 +404,22 @@
                     if (isGroq) {
                         const enrichedPrompt = files.length > 0 ? 
                             `${prompt}\n\n[USER ATTACHED FILES: ${files.map(f => f.name).join(', ')}]` : prompt;
-                        response = await fetchGroq(enrichedPrompt, modelName, currentKey);
+                        response = await fetchGroq(enrichedPrompt, modelName, currentKey, signal);
                         currentGroqKeyIndex = idx;
                     } else {
-                        response = await fetchGemini(prompt, files, modelName, currentKey);
+                        response = await fetchGemini(prompt, files, modelName, currentKey, signal);
                         currentGeminiKeyIndex = idx;
                     }
                     return response;
                 } catch (err) {
+                    if (err.name === 'AbortError') throw err;
                     console.error(`${provider} Key ${idx} failed:`, err);
                 }
             }
             return "ERROR: ALL API KEYS FAILED OR EXHAUSTED.";
         }
 
-        async function fetchGemini(prompt, files, model, key) {
+        async function fetchGemini(prompt, files, model, key, signal) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
             const parts = [{ text: prompt || "Analyzing provided content..." }];
             
@@ -380,21 +435,23 @@
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: parts }] })
+                body: JSON.stringify({ contents: [{ parts: parts }] }),
+                signal: signal
             });
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
             return data.candidates[0].content.parts[0].text;
         }
 
-        async function fetchGroq(prompt, model, key) {
+        async function fetchGroq(prompt, model, key, signal) {
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: "user", content: prompt }]
-                })
+                }),
+                signal: signal
             });
             if (!res.ok) throw new Error(await res.text());
             const data = await res.json();
@@ -453,13 +510,17 @@
                 };
 
                 mediaRecorder.onstart = () => {
-                    document.getElementById('mic-btn').innerText = '🛑';
-                    document.getElementById('mic-btn').classList.add('bg-red-900');
+                    document.getElementById('mic-btn').innerHTML = `
+                        <svg class="w-5 h-5 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+                    `;
+                    document.getElementById('mic-btn').classList.add('bg-red-900/20');
                 };
 
                 mediaRecorder.onstop = async () => {
-                    document.getElementById('mic-btn').innerText = '🎤';
-                    document.getElementById('mic-btn').classList.remove('bg-red-900');
+                    document.getElementById('mic-btn').innerHTML = `
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    `;
+                    document.getElementById('mic-btn').classList.remove('bg-red-900/20');
                     
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
@@ -474,7 +535,12 @@
                         const transcript = await processSTT(audioFile);
                         if (transcript) {
                             const input = document.getElementById('user-input');
-                            input.value += (input.value ? ' ' : '') + transcript;
+                            const cleanTranscript = transcript.trim();
+                            if (input.value && !input.value.endsWith(' ')) {
+                                input.value += ' ';
+                            }
+                            input.value += cleanTranscript;
+                            input.focus();
                         }
                     } catch (err) {
                         alert("STT Error: " + err.message);
