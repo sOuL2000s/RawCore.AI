@@ -261,6 +261,13 @@
                     <span id="stt-model-label" class="text-[8px] sm:text-[10px] text-gray-400 uppercase tracking-widest font-bold">VOICE:</span>
                     <select id="stt-model-select" aria-labelledby="stt-model-label" class="bg-gray-900 text-[10px] sm:text-xs border border-gray-600 rounded p-1 focus:outline-none text-white max-w-[120px] sm:max-w-none"></select>
                 </div>
+                <div class="flex items-center gap-2 border-l border-gray-800 pl-2 sm:pl-4">
+                    <span class="text-[8px] sm:text-[10px] text-gray-400 uppercase tracking-widest font-bold">AWARENESS:</span>
+                    <button id="awareness-toggle" onclick="toggleAwareness()" class="relative inline-flex h-4 w-8 sm:h-5 sm:w-10 items-center rounded-full bg-blue-600 transition-colors focus:outline-none" role="switch" aria-checked="true">
+                        <span id="awareness-dot" class="inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform translate-x-4 sm:translate-x-5"></span>
+                    </button>
+                </div>
+                <button onclick="resetToDefaults()" aria-label="Reset preferences to defaults" class="ml-auto text-[8px] sm:text-[10px] text-gray-500 hover:text-white border border-gray-700 px-1.5 py-0.5 rounded uppercase tracking-tighter shrink-0">RESET_DEFAULTS</button>
             </div>
 
             <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll" role="log" aria-live="polite" aria-relevant="additions">
@@ -433,6 +440,7 @@
         let currentGeminiKeyIndex = 0;
         let currentGroqKeyIndex = 0;
         let isGenerating = false;
+        let isContextAware = true;
         let currentAbortController = null;
         let isSelectionMode = false;
         let selectedChatIds = new Set();
@@ -529,6 +537,62 @@
         window.toggleSidebar = () => {
             document.getElementById('sidebar').classList.toggle('open');
             document.getElementById('sidebar-overlay').classList.toggle('open');
+        };
+
+        window.toggleAwareness = (forceValue) => {
+            if (typeof forceValue === 'boolean') {
+                isContextAware = forceValue;
+            } else {
+                isContextAware = !isContextAware;
+            }
+            
+            const btn = document.getElementById('awareness-toggle');
+            const dot = document.getElementById('awareness-dot');
+            if (isContextAware) {
+                btn.classList.remove('bg-gray-700');
+                btn.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-4', 'sm:translate-x-5');
+                btn.setAttribute('aria-checked', 'true');
+                if (typeof forceValue !== 'boolean') window.showToast("CONTEXT_AWARENESS_ENABLED", "info");
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+                dot.classList.remove('translate-x-4', 'sm:translate-x-5');
+                dot.classList.add('translate-x-1');
+                btn.setAttribute('aria-checked', 'false');
+                if (typeof forceValue !== 'boolean') window.showToast("CONTEXT_AWARENESS_DISABLED", "info");
+            }
+        };
+
+        window.resetToDefaults = async () => {
+            if (!config.textModels.length || !config.sttModels.length) return;
+            
+            const defaultText = config.textModels[0];
+            const defaultSTT = config.sttModels[0];
+            
+            document.getElementById('text-model-select').value = defaultText;
+            document.getElementById('stt-model-select').value = defaultSTT;
+            
+            // Force awareness to true (default state)
+            window.toggleAwareness(true);
+
+            // Persist to Firebase
+            if (currentUser) {
+                try {
+                    const batchUpdate = {
+                        'preferences.defaultTextModel': defaultText,
+                        'preferences.defaultSTTModel': defaultSTT
+                    };
+                    await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
+                    userPrefs.defaultTextModel = defaultText;
+                    userPrefs.defaultSTTModel = defaultSTT;
+                    window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
+                } catch (e) {
+                    console.error("Reset failed:", e);
+                    window.showToast("RESET_FAILED", "error");
+                }
+            }
         };
 
         window.showCustomModal = ({ title, message, inputPlaceholder, inputValue, confirmText, confirmClass, onConfirm }) => {
@@ -916,8 +980,18 @@
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
 
+                let history = [];
+                if (isContextAware && currentChatId) {
+                    const q = query(collection(db, `chats/${currentChatId}/messages`), orderBy("timestamp", "asc"));
+                    const snap = await getDocs(q);
+                    snap.forEach(doc => {
+                        const d = doc.data();
+                        history.push({ role: d.role === 'bot' ? 'assistant' : 'user', content: d.content });
+                    });
+                }
+
                 window.showLoading("GENERATING_RESPONSE...");
-                const response = await callAIWithFailover(text, attachmentData, model, currentAbortController.signal);
+                const response = await callAIWithFailover(text, attachmentData, model, currentAbortController.signal, history);
                 appendMessage('bot', response);
                 
                 // Save bot response with distinct timestamp (ensuring it's after user)
@@ -944,7 +1018,7 @@
             }
         };
 
-        async function callAIWithFailover(prompt, files, modelValue, signal) {
+        async function callAIWithFailover(prompt, files, modelValue, signal, history = []) {
             const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['gemini', modelValue];
             const isGroq = provider.toLowerCase() === 'groq';
             const keys = isGroq ? config.groqKeys : config.geminiKeys;
@@ -960,12 +1034,10 @@
                 try {
                     let response;
                     if (isGroq) {
-                        const enrichedPrompt = files.length > 0 ? 
-                            `${prompt}\n\n[USER ATTACHED FILES: ${files.map(f => f.name).join(', ')}]` : prompt;
-                        response = await fetchGroq(enrichedPrompt, modelName, currentKey, signal);
+                        response = await fetchGroq(prompt, files, modelName, currentKey, signal, history);
                         currentGroqKeyIndex = idx;
                     } else {
-                        response = await fetchGemini(prompt, files, modelName, currentKey, signal);
+                        response = await fetchGemini(prompt, files, modelName, currentKey, signal, history);
                         currentGeminiKeyIndex = idx;
                     }
                     return response;
@@ -981,7 +1053,7 @@
             try {
                 const titlePrompt = `BASED_ON_THIS_USER_PROMPT: "${userPrompt.substring(0, 200)}" \nAND_AI_RESPONSE: "${aiResponse.substring(0, 200)}"\n\nGENERATE_A_CONCISE_DESCRIPTIVE_TITLE_FOR_THIS_CHAT. \n- MAX_5_WORDS\n- NO_QUOTES\n- NO_PERIODS\n- UPPERCASE_OR_RAW_STYLE\n- OUTPUT_ONLY_THE_TITLE`;
                 
-                const title = await callAIWithFailover(titlePrompt, [], modelValue, null);
+                const title = await callAIWithFailover(titlePrompt, [], modelValue, null, []);
                 const cleanTitle = title.replace(/["'#*]/g, "").trim().substring(0, 50);
                 if (cleanTitle && !cleanTitle.includes("ERROR:")) {
                     await updateDoc(doc(db, "chats", chatId), { title: cleanTitle });
@@ -994,23 +1066,43 @@
             }
         }
 
-        async function fetchGemini(prompt, files, model, key, signal) {
+        async function fetchGemini(prompt, files, model, key, signal, history = []) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
-            const parts = [{ text: prompt || "Analyzing provided content..." }];
-            
-            for (const file of files) {
-                if (file.type.startsWith('image/')) {
-                    const b64 = await fileToBase64(file);
-                    parts.push({ inline_data: { mime_type: file.type, data: b64 } });
-                } else {
-                    parts[0].text += `\n[File Attachment: ${file.name}]`;
+            let contents = [];
+
+            if (history.length > 0) {
+                contents = history.map(h => ({
+                    role: h.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: h.content }]
+                }));
+                if (files.length > 0) {
+                    const lastMsg = contents[contents.length - 1];
+                    for (const file of files) {
+                        if (file.type.startsWith('image/')) {
+                            const b64 = await fileToBase64(file);
+                            lastMsg.parts.push({ inline_data: { mime_type: file.type, data: b64 } });
+                        } else {
+                            lastMsg.parts[0].text += `\n[File Attachment: ${file.name}]`;
+                        }
+                    }
                 }
+            } else {
+                const parts = [{ text: prompt || "Analyzing provided content..." }];
+                for (const file of files) {
+                    if (file.type.startsWith('image/')) {
+                        const b64 = await fileToBase64(file);
+                        parts.push({ inline_data: { mime_type: file.type, data: b64 } });
+                    } else {
+                        parts[0].text += `\n[File Attachment: ${file.name}]`;
+                    }
+                }
+                contents.push({ role: 'user', parts: parts });
             }
 
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: parts }] }),
+                body: JSON.stringify({ contents: contents }),
                 signal: signal
             });
             if (!res.ok) throw new Error(await res.text());
@@ -1018,13 +1110,24 @@
             return data.candidates[0].content.parts[0].text;
         }
 
-        async function fetchGroq(prompt, model, key, signal) {
+        async function fetchGroq(prompt, files, model, key, signal, history = []) {
+            const enrichedPrompt = files.length > 0 ? 
+                `${prompt}\n\n[USER ATTACHED FILES: ${files.map(f => f.name).join(', ')}]` : prompt;
+
+            let messages = [];
+            if (history.length > 0) {
+                messages = [...history];
+                messages[messages.length - 1].content = enrichedPrompt;
+            } else {
+                messages = [{ role: "user", content: enrichedPrompt }];
+            }
+
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
                 body: JSON.stringify({
                     model: model,
-                    messages: [{ role: "user", content: prompt }]
+                    messages: messages
                 }),
                 signal: signal
             });
