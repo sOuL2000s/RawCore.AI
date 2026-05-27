@@ -215,6 +215,10 @@
             <div class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden xs:inline">[BETA]</span></div>
         </div>
         <div class="flex gap-1 md:gap-3 items-center shrink-0">
+            <div id="user-identity" class="hidden flex-col items-end mr-1 md:mr-2 text-[8px] md:text-[9px] font-mono tracking-tighter leading-none">
+                <span class="text-gray-600">SESSION_ID</span>
+                <span id="user-email-display" class="text-blue-400/70 truncate max-w-[80px] sm:max-w-[150px]"></span>
+            </div>
             <button type="button" onclick="togglePanel('help-panel')" id="help-btn" aria-label="Open User Guide" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">HELP</button>
             <button type="button" onclick="togglePanel('admin-panel')" id="admin-btn" aria-label="Open Admin Configuration" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
             <button type="button" onclick="logout()" aria-label="Logout" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
@@ -370,6 +374,22 @@
                     </ul>
                 </section>
 
+                <section>
+                    <h3 class="text-blue-400 font-bold mb-2">06_KEYBOARD_SHORTCUTS</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-gray-400 border border-gray-800 p-4 rounded bg-black/30">
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>NEW_CHAT</span> <span class="text-blue-400 font-bold">[ALT+N]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>TOGGLE_SIDEBAR</span> <span class="text-blue-400 font-bold">[ALT+S]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>HELP_PANEL</span> <span class="text-blue-400 font-bold">[ALT+H]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>ADMIN_PANEL</span> <span class="text-blue-400 font-bold">[ALT+A]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>VOICE_INPUT</span> <span class="text-blue-400 font-bold">[ALT+V]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>EXPORT_MENU</span> <span class="text-blue-400 font-bold">[ALT+E]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>MANAGE_CHATS</span> <span class="text-blue-400 font-bold">[ALT+M]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>CLEAR_ALL</span> <span class="text-blue-400 font-bold">[ALT+C]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>FOCUS_INPUT</span> <span class="text-blue-400 font-bold">[/]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>CLOSE_PANELS</span> <span class="text-blue-400 font-bold">[ESC]</span></div>
+                    </div>
+                </section>
+
                 <div class="pt-6 border-t border-gray-800 text-[10px] text-gray-600">
                     RAWCORE_VERSION: 1.0.0_BETA // ENGINE: FIREBASE_FIRESTORE // STATUS: OPERATIONAL
                 </div>
@@ -449,6 +469,53 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
+        // Keyboard Shortcuts Handler
+        window.addEventListener('keydown', (e) => {
+            const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+            
+            // Global Escape key handling
+            if (e.key === 'Escape') {
+                const panels = ['help-panel', 'admin-panel', 'custom-modal'];
+                panels.forEach(id => document.getElementById(id).classList.add('hidden'));
+                document.getElementById('export-menu').classList.add('hidden');
+                const arrow = document.getElementById('export-arrow');
+                if (arrow) arrow.style.transform = '';
+                if (isSelectionMode) toggleSelectionMode();
+                return;
+            }
+
+            // Focus search input with '/'
+            if (!isInput && e.key === '/') {
+                e.preventDefault();
+                const input = document.getElementById('user-input');
+                if (input) input.focus();
+                return;
+            }
+
+            // Alt Key Shortcuts
+            if (e.altKey) {
+                switch(e.key.toLowerCase()) {
+                    case 'n': 
+                        e.preventDefault(); 
+                        createNewChat(); 
+                        if(window.innerWidth < 768) document.getElementById('sidebar').classList.remove('open');
+                        break;
+                    case 's': e.preventDefault(); toggleSidebar(); break;
+                    case 'h': e.preventDefault(); togglePanel('help-panel'); break;
+                    case 'a': 
+                        const adminBtn = document.getElementById('admin-btn');
+                        if (adminBtn && !adminBtn.classList.contains('hidden')) {
+                            e.preventDefault(); togglePanel('admin-panel');
+                        }
+                        break;
+                    case 'v': e.preventDefault(); startSpeech(); break;
+                    case 'e': e.preventDefault(); toggleExportMenu(); break;
+                    case 'm': e.preventDefault(); toggleSelectionMode(); break;
+                    case 'c': e.preventDefault(); deleteAllChats(); break;
+                }
+            }
+        });
 
         // State
         let currentUser = null;
@@ -840,6 +907,11 @@
                 currentUser = user;
                 authScreen.classList.add('hidden');
                 
+                const identityEl = document.getElementById('user-identity');
+                const emailDisplay = document.getElementById('user-email-display');
+                if (identityEl) { identityEl.classList.remove('hidden'); identityEl.classList.add('flex'); }
+                if (emailDisplay) emailDisplay.innerText = user.email ? user.email.toUpperCase() : 'ANONYMOUS';
+
                 let isAdmin = false;
                 try {
                     const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -870,6 +942,10 @@
                 status.innerText = "NO_SESSION_FOUND...REDIRECTING_TO_LOGIN";
                 currentUser = null;
                 currentChatId = null;
+                const identityEl = document.getElementById('user-identity');
+                const emailDisplay = document.getElementById('user-email-display');
+                if (identityEl) { identityEl.classList.add('hidden'); identityEl.classList.remove('flex'); }
+                if (emailDisplay) emailDisplay.innerText = '';
                 document.getElementById('chat-window').innerHTML = '';
                 document.getElementById('chat-history').innerHTML = '';
                 authScreen.classList.remove('hidden');
