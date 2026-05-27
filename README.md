@@ -8,6 +8,7 @@ RawCore.AI is a high-performance, "raw" AI chatbot interface designed for direct
 - **Unfiltered Interaction**: No default system prompts or hidden filters. Get pure model outputs.
 - **Failover Logic**: Add multiple API keys for Gemini and Groq. The system automatically rotates to the next available key if one encounters an error or rate limit.
 - **Admin Configuration**: Manage API keys and model availability (Text & STT) directly through the interface (stored securely in Firestore).
+- **User Management (Admin)**: Search users by email, toggle administrator roles, and delete user profiles from the Firestore registry.
 - **Multi-Modal Capabilities**:
     - **Text Generation**: Support for any Gemini or Groq text model.
     - **Speech-to-Text (STT)**: Integrated voice typing via Whisper (Groq) or Gemini audio processing.
@@ -34,9 +35,16 @@ Apply the following rules in the Firebase Console to ensure data privacy while a
 ```javascript
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // User profiles
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+
+      // Admin logic
+      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
     // Global settings (Admin only for write, Auth for read)
@@ -52,7 +60,8 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       
       match /messages/{messageId} {
-        allow read, write: if request.auth != null;
+        // Inherit permissions from parent chat ownership
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
       }
     }
   }

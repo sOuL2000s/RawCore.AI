@@ -193,9 +193,16 @@
                 <input type="password" id="auth-password" placeholder="Password" aria-label="Password" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400">
                 <button onclick="togglePassword()" aria-label="Toggle password visibility" class="absolute right-2 top-2 text-xs text-gray-400 hover:text-white">VIEW</button>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 mb-4">
                 <button onclick="handleAuth('login')" aria-label="Log in" class="flex-1 bg-blue-600 p-2 rounded hover:bg-blue-700">LOGIN</button>
                 <button onclick="handleAuth('signup')" aria-label="Sign up" class="flex-1 border border-blue-600 p-2 rounded hover:bg-blue-900">SIGNUP</button>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button onclick="handleGoogleSignIn()" aria-label="Sign in with Google" class="w-full border border-gray-600 p-2 rounded hover:bg-gray-800 flex items-center justify-center gap-2 text-xs font-bold">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                    SIGN_IN_WITH_GOOGLE
+                </button>
+                <button onclick="handleForgotPassword()" class="text-[10px] text-gray-500 hover:text-blue-400 underline uppercase tracking-tighter self-center">FORGOT_PASSWORD?</button>
             </div>
         </div>
     </div>
@@ -398,6 +405,16 @@
                     </div>
                 </div>
                 <button onclick="saveAdminSettings()" aria-label="Save administration settings" class="w-full bg-green-600 p-3 rounded font-bold">SAVE_CONFIG</button>
+
+                <section class="pt-8 border-t border-gray-800">
+                    <h3 class="text-blue-400 font-bold mb-4 uppercase tracking-tighter">USER_MANAGEMENT</h3>
+                    <div class="mb-4">
+                        <input type="text" id="admin-user-search" oninput="window.filterUserList()" placeholder="SEARCH_USERS_BY_EMAIL" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div id="admin-user-list" class="space-y-2 max-h-64 overflow-y-auto pr-2 chat-scroll">
+                        <div class="text-gray-500 text-[10px] italic p-4 text-center">LOADING_USER_REGISTRY...</div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
@@ -416,7 +433,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, collection, addDoc, query, where, onSnapshot, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
         // --- FIREBASE CONFIGURATION ---
@@ -447,6 +464,7 @@
         let selectedChatIds = new Set();
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
+        let allUsers = []; 
 
         // --- MARKED CUSTOMIZATION ---
         const renderer = new marked.Renderer();
@@ -760,6 +778,51 @@
             } catch (e) { window.showToast(e.message, "error"); }
         };
 
+        window.handleGoogleSignIn = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
+                const userDocRef = doc(db, "users", user.uid);
+                const userDoc = await getDoc(userDocRef);
+                if (!userDoc.exists()) {
+                    await setDoc(userDocRef, {
+                        email: user.email,
+                        isAdmin: false,
+                        createdAt: Date.now(),
+                        provider: 'google'
+                    });
+                }
+                document.getElementById('auth-screen').classList.add('hidden');
+                window.showToast("GOOGLE_AUTH_SUCCESS", "success");
+            } catch (e) {
+                window.showToast("GOOGLE_AUTH_FAILED: " + e.message, "error");
+            }
+        };
+
+        window.handleForgotPassword = () => {
+            const currentEmail = document.getElementById('auth-email').value;
+            window.showCustomModal({
+                title: 'RESET_PASSWORD',
+                message: 'ENTER_YOUR_EMAIL_FOR_PASSWORD_RESET_LINK',
+                inputPlaceholder: 'EMAIL_ADDRESS',
+                inputValue: currentEmail,
+                confirmText: 'SEND_LINK',
+                onConfirm: async (email) => {
+                    if (!email || !email.includes('@')) {
+                        window.showToast("INVALID_EMAIL", "error");
+                        return;
+                    }
+                    try {
+                        await sendPasswordResetEmail(auth, email);
+                        window.showToast("PASSWORD_RESET_EMAIL_SENT", "success");
+                    } catch (e) {
+                        window.showToast("PASSWORD_RESET_FAILED: " + e.message, "error");
+                    }
+                }
+            });
+        };
+
         window.logout = () => signOut(auth);
 
         window.togglePassword = () => {
@@ -777,27 +840,32 @@
                 currentUser = user;
                 authScreen.classList.add('hidden');
                 
+                let isAdmin = false;
                 try {
                     const userDoc = await getDoc(doc(db, "users", user.uid));
                     if (userDoc.exists()) {
                         const userData = userDoc.data();
                         userPrefs = userData.preferences || {};
-                        if (userData.isAdmin === true) {
-                            document.getElementById('admin-btn').classList.remove('hidden');
-                        } else {
-                            document.getElementById('admin-btn').classList.add('hidden');
-                        }
+                        isAdmin = userData.isAdmin === true;
                     } else {
                         userPrefs = {};
-                        document.getElementById('admin-btn').classList.add('hidden');
                     }
                 } catch (err) {
                     userPrefs = {};
+                    console.error("Profile load error:", err);
+                }
+
+                if (isAdmin) {
+                    document.getElementById('admin-btn').classList.remove('hidden');
+                } else {
                     document.getElementById('admin-btn').classList.add('hidden');
                 }
 
                 await loadConfig();
                 await loadChatHistory();
+                if (isAdmin) {
+                    loadUserRegistry();
+                }
             } else {
                 status.innerText = "NO_SESSION_FOUND...REDIRECTING_TO_LOGIN";
                 currentUser = null;
@@ -835,6 +903,86 @@
             await setDoc(doc(db, "settings", "main"), data);
             window.showToast("CONFIG_SAVED", "success");
             setTimeout(() => location.reload(), 1000);
+        };
+
+        async function loadUserRegistry() {
+            const q = query(collection(db, "users"), orderBy("createdAt", "desc"));
+            onSnapshot(q, (snapshot) => {
+                allUsers = [];
+                snapshot.forEach(doc => {
+                    allUsers.push({ id: doc.id, ...doc.data() });
+                });
+                renderUserList(allUsers);
+            });
+        }
+
+        function renderUserList(users) {
+            const listContainer = document.getElementById('admin-user-list');
+            if (!listContainer) return;
+            if (users.length === 0) {
+                listContainer.innerHTML = '<div class="text-gray-600 text-[10px] p-4 text-center">NO_USERS_FOUND</div>';
+                return;
+            }
+            listContainer.innerHTML = users.map(user => `
+                <div class="flex items-center justify-between p-2 glass rounded text-[11px] group">
+                    <div class="flex flex-col truncate pr-2">
+                        <span class="text-white truncate">${user.email}</span>
+                        <span class="${user.isAdmin ? 'text-yellow-500' : 'text-gray-500'} text-[9px] font-bold">
+                            ${user.isAdmin ? '[ADMIN]' : '[USER]'}
+                        </span>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button onclick="window.toggleUserAdmin('${user.id}', ${user.isAdmin})" 
+                                class="border border-blue-500/30 px-2 py-1 rounded text-[9px] hover:bg-blue-600/20 transition-colors uppercase">
+                            ROLE
+                        </button>
+                        <button onclick="window.deleteUserProfile('${user.id}', '${user.email}')" 
+                                class="border border-red-900/30 px-2 py-1 rounded text-[9px] text-red-500/50 hover:text-red-500 hover:bg-red-900/10 transition-colors uppercase">
+                            DEL
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.filterUserList = () => {
+            const term = document.getElementById('admin-user-search').value.toLowerCase();
+            const filtered = allUsers.filter(u => u.email.toLowerCase().includes(term));
+            renderUserList(filtered);
+        };
+
+        window.toggleUserAdmin = async (uid, currentStatus) => {
+            if (uid === currentUser.uid) {
+                window.showToast("CANNOT_REVOKE_OWN_ADMIN_STATUS", "error");
+                return;
+            }
+            try {
+                await updateDoc(doc(db, "users", uid), { isAdmin: !currentStatus });
+                window.showToast("USER_ROLE_UPDATED", "success");
+            } catch (e) {
+                window.showToast("UPDATE_FAILED: " + e.message, "error");
+            }
+        };
+
+        window.deleteUserProfile = async (uid, email) => {
+            if (uid === currentUser.uid) {
+                window.showToast("CANNOT_DELETE_OWN_PROFILE", "error");
+                return;
+            }
+            window.showCustomModal({
+                title: 'DELETE_USER',
+                message: `PERMANENTLY_DELETE_PROFILE_FOR: ${email}?`,
+                confirmText: 'DELETE',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: async () => {
+                    try {
+                        await deleteDoc(doc(db, "users", uid));
+                        window.showToast("USER_PROFILE_DELETED", "success");
+                    } catch (e) {
+                        window.showToast("DELETE_FAILED: " + e.message, "error");
+                    }
+                }
+            });
         };
 
         async function saveUserPreference(key, value) {
