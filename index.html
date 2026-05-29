@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -45,9 +46,61 @@
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
         .glass { background: rgba(22, 27, 34, 0.8); backdrop-filter: blur(10px); border: 1px solid #30363d; }
         *:focus-visible { outline: 2px solid #3b82f6 !important; outline-offset: 2px; }
-        .chat-scroll::-webkit-scrollbar { width: 5px; }
-        .chat-scroll::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #444c56; }
+        .chat-scroll::-webkit-scrollbar { width: 8px; }
         .hidden { display: none !important; }
+        
+        /* Minimap / Scrollbar Highlights */
+        #minimap-track {
+            background: transparent;
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+        #minimap-track:hover {
+            background: rgba(48, 54, 61, 0.2);
+        }
+        .minimap-marker {
+            position: absolute;
+            right: 0;
+            width: 100%;
+            min-height: 2px;
+            border-radius: 1px;
+            opacity: 0.7;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .minimap-marker:hover {
+            opacity: 1;
+            transform: scaleX(3);
+            z-index: 32;
+        }
+        .marker-user { background: #888; }
+        .marker-bot { background: #3b82f6; }
+        .marker-code { background: #f59e0b; z-index: 31; }
+
+        .scroll-btn {
+            position: absolute;
+            width: 28px;
+            height: 28px;
+            background: rgba(22, 27, 34, 0.9);
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #c9d1d9;
+            cursor: pointer;
+            z-index: 35;
+            transition: all 0.2s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .scroll-btn.visible { opacity: 1; pointer-events: auto; }
+        .scroll-btn:hover { background: #30363d; color: #fff; border-color: #3b82f6; }
         .loader { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes wave {
@@ -207,6 +260,11 @@
         </div>
     </div>
 
+    <!-- Network Status Indicator -->
+    <div id="network-status" class="hidden bg-red-600 text-white text-[10px] font-bold py-1 text-center sticky top-0 z-[70] animate-pulse">
+        OFFLINE_MODE_ENABLED // SOME_FEATURES_MAY_BE_UNAVAILABLE
+    </div>
+
     <!-- Main Navigation -->
     <header class="border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
         <div class="flex items-center gap-1 sm:gap-3 overflow-hidden">
@@ -232,6 +290,12 @@
         <!-- Sidebar: History -->
         <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:w-64 md:translate-x-0 md:static" aria-label="Chat History Sidebar" role="complementary">
             <div class="space-y-2">
+                <div class="relative group">
+                    <input type="text" id="chat-search" placeholder="SEARCH_HISTORY..." aria-label="Search chat history" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-[10px] focus:outline-none focus:border-blue-500 text-white font-mono transition-colors">
+                    <div class="absolute right-2 top-2.5 text-gray-600 group-focus-within:text-blue-500 pointer-events-none">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
                 <button onclick="createNewChat(); toggleSidebar();" aria-label="Start a new chat" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm text-blue-400 font-bold">+ NEW_CHAT</button>
                 <div class="flex gap-1">
                     <button id="manage-chats-btn" onclick="toggleSelectionMode()" aria-label="Toggle batch management mode" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
@@ -279,11 +343,25 @@
                         <span id="awareness-dot" class="inline-block h-3 w-3 sm:h-4 sm:w-4 transform rounded-full bg-white transition-transform translate-x-4 sm:translate-x-5"></span>
                     </button>
                 </div>
-                <button onclick="resetToDefaults()" aria-label="Reset preferences to defaults" class="ml-auto text-[8px] sm:text-[10px] text-gray-500 hover:text-white border border-gray-700 px-1.5 py-0.5 rounded uppercase tracking-tighter shrink-0">RESET_DEFAULTS</button>
+                <button onclick="togglePanel('settings-panel')" aria-label="Open model parameters" class="ml-auto text-[8px] sm:text-[10px] text-blue-400 hover:text-white border border-blue-400/50 px-1.5 py-0.5 rounded uppercase tracking-tighter shrink-0">PARAMS</button>
+                <button onclick="resetToDefaults()" aria-label="Reset preferences to defaults" class="text-[8px] sm:text-[10px] text-gray-500 hover:text-white border border-gray-700 px-1.5 py-0.5 rounded uppercase tracking-tighter shrink-0">RESET_DEFAULTS</button>
             </div>
 
-            <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll" role="log" aria-live="polite" aria-relevant="additions">
-                <!-- Messages -->
+            <div class="flex-1 min-h-0 relative flex flex-col">
+                <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
+                    <!-- Messages -->
+                </div>
+                
+                <!-- Minimap Track (Offset from right to allow independent scrollbar usage) -->
+                <div id="minimap-track" class="absolute right-4 top-1 bottom-1 w-[6px] z-30 pointer-events-auto" aria-hidden="true"></div>
+                
+                <!-- Jump Buttons (Offset further to avoid overlap with minimap) -->
+                <button id="jump-top" onclick="scrollToEdge('top')" title="JUMP_TO_TOP" class="scroll-btn" style="right: 28px; top: 10px;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                </button>
+                <button id="jump-bottom" onclick="scrollToEdge('bottom')" title="JUMP_TO_BOTTOM" class="scroll-btn" style="right: 28px; bottom: 10px;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
             </div>
 
             <!-- Loading Indicator -->
@@ -384,6 +462,7 @@
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>VOICE_INPUT</span> <span class="text-blue-400 font-bold">[ALT+V]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>EXPORT_MENU</span> <span class="text-blue-400 font-bold">[ALT+E]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>MANAGE_CHATS</span> <span class="text-blue-400 font-bold">[ALT+M]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>MODEL_PARAMS</span> <span class="text-blue-400 font-bold">[ALT+P]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>CLEAR_ALL</span> <span class="text-blue-400 font-bold">[ALT+C]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>FOCUS_INPUT</span> <span class="text-blue-400 font-bold">[/]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>CLOSE_PANELS</span> <span class="text-blue-400 font-bold">[ESC]</span></div>
@@ -393,6 +472,95 @@
                 <div class="pt-6 border-t border-gray-800 text-[10px] text-gray-600">
                     RAWCORE_VERSION: 1.0.0_BETA // ENGINE: FIREBASE_FIRESTORE // STATUS: OPERATIONAL
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Settings Panel Modal -->
+    <div id="settings-panel" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden p-4 md:p-10 overflow-y-auto" role="dialog" aria-labelledby="settings-title">
+        <div class="max-w-md mx-auto">
+            <div class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+                <h2 id="settings-title" class="text-xl md:text-2xl font-bold text-blue-400">MODEL_PARAMETERS</h2>
+                <button onclick="togglePanel('settings-panel')" aria-label="Close settings" class="text-red-500 font-bold text-sm">[CLOSE]</button>
+            </div>
+            
+            <div class="space-y-6 font-mono">
+                <!-- Temperature -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">CREATIVITY (TEMP)</span>
+                            <span class="text-[8px] text-gray-500 uppercase">Controls randomness vs focus</span>
+                        </div>
+                        <input type="checkbox" id="toggle-temp" class="w-4 h-4 accent-blue-500">
+                    </div>
+                    <div id="container-temp" class="space-y-2 transition-opacity">
+                        <div class="flex justify-between text-[10px] text-gray-400">
+                            <span>PRECISE</span>
+                            <span id="val-temp" class="text-blue-400 font-bold">1.0</span>
+                            <span>CREATIVE</span>
+                        </div>
+                        <input type="range" id="param-temp" min="0" max="2" step="0.1" value="1" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    </div>
+                </div>
+
+                <!-- Top P -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">DIVERSITY (TOP_P)</span>
+                            <span class="text-[8px] text-gray-500 uppercase">Limits token pool selection</span>
+                        </div>
+                        <input type="checkbox" id="toggle-top-p" class="w-4 h-4 accent-blue-500">
+                    </div>
+                    <div id="container-top-p" class="space-y-2 transition-opacity">
+                        <div class="flex justify-between text-[10px] text-gray-400">
+                            <span>NARROW</span>
+                            <span id="val-top-p" class="text-blue-400 font-bold">0.95</span>
+                            <span>BROAD</span>
+                        </div>
+                        <input type="range" id="param-top-p" min="0" max="1" step="0.01" value="0.95" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    </div>
+                </div>
+
+                <!-- Max Tokens -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">RESPONSE_LENGTH</span>
+                            <span class="text-[8px] text-gray-500 uppercase">Limit how long output can be</span>
+                        </div>
+                        <input type="checkbox" id="toggle-tokens" class="w-4 h-4 accent-blue-500">
+                    </div>
+                    <div id="container-tokens" class="flex justify-between items-center transition-opacity">
+                        <span class="text-[9px] text-gray-400 uppercase">MAX_TOKENS:</span>
+                        <input type="number" id="param-tokens" value="4096" class="bg-gray-800 border-b border-blue-500/30 text-blue-400 text-center focus:outline-none focus:border-blue-500 w-24 rounded py-1 text-xs">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-gray-800">
+                    <button onclick="saveModelParams()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded text-xs uppercase transition-colors">APPLY_CHANGES</button>
+                    <p class="text-[8px] text-gray-600 mt-2 text-center">DISABLED_PARAMS_USE_MODEL_DEFAULTS</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Text Editor Modal -->
+    <div id="text-editor-modal" class="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md hidden flex items-center justify-center p-2 sm:p-4">
+        <div class="glass w-full max-w-4xl h-[90vh] flex flex-col rounded-lg overflow-hidden border border-gray-700 shadow-2xl">
+            <div class="p-3 border-b border-gray-800 flex justify-between items-center bg-black/40">
+                <div class="flex items-center gap-2 flex-1 mr-4">
+                    <span class="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">EDITING_FILE:</span>
+                    <input type="text" id="editor-filename" class="bg-gray-900 border border-gray-700 px-2 py-1 rounded text-xs text-white focus:outline-none focus:border-blue-500 flex-1 font-mono" placeholder="filename.txt">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="window.closeTextEditor()" class="px-3 py-1 text-[10px] font-bold text-gray-500 hover:text-white uppercase transition-colors">CANCEL</button>
+                    <button onclick="window.saveEditedText()" class="px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase transition-colors">SAVE_CHANGES</button>
+                </div>
+            </div>
+            <div class="flex-1 p-2 bg-[#0d1117]">
+                <textarea id="editor-content" class="w-full h-full bg-transparent text-gray-300 font-mono text-sm p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/20 rounded chat-scroll" placeholder="ENTER_CONTENT_HERE..."></textarea>
             </div>
         </div>
     </div>
@@ -427,6 +595,13 @@
                 <button onclick="saveAdminSettings()" aria-label="Save administration settings" class="w-full bg-green-600 p-3 rounded font-bold">SAVE_CONFIG</button>
 
                 <section class="pt-8 border-t border-gray-800">
+                    <h3 class="text-blue-400 font-bold mb-4 uppercase tracking-tighter">KEY_HEALTH_MONITOR</h3>
+                    <div id="admin-key-metrics" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-2 chat-scroll font-mono text-[10px]">
+                        <div class="text-gray-500 italic p-4 text-center col-span-full">INITIALIZING_METRICS_STREAM...</div>
+                    </div>
+                </section>
+
+                <section class="pt-8 border-t border-gray-800">
                     <h3 class="text-blue-400 font-bold mb-4 uppercase tracking-tighter">USER_MANAGEMENT</h3>
                     <div class="mb-4">
                         <input type="text" id="admin-user-search" oninput="window.filterUserList()" placeholder="SEARCH_USERS_BY_EMAIL" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500">
@@ -439,15 +614,47 @@
         </div>
     </div>
 
-    <!-- PWA Service Worker Registration -->
+    <!-- PWA Service Worker Registration & Lifecycle -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW_REGISTERED', reg.scope))
-                    .catch(err => console.error('SW_REGISTRATION_FAILED', err));
+                navigator.serviceWorker.register('./sw.js').then(registration => {
+                    console.log('SW_REGISTERED');
+                    
+                    // Check for updates
+                    registration.onupdatefound = () => {
+                        const installingWorker = registration.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New version available, reload automatically to apply
+                                window.location.reload();
+                            }
+                        };
+                    };
+                }).catch(err => console.error('SW_REGISTRATION_FAILED', err));
+            });
+
+            // Ensure the new service worker takes control immediately
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
             });
         }
+
+        // Online/Offline Status Logic
+        function updateOnlineStatus() {
+            const statusEl = document.getElementById('network-status');
+            if (navigator.onLine) {
+                statusEl.classList.add('hidden');
+            } else {
+                statusEl.classList.remove('hidden');
+            }
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        document.addEventListener('DOMContentLoaded', updateOnlineStatus);
     </script>
 
     <!-- Firebase SDKs -->
@@ -476,7 +683,7 @@
             
             // Global Escape key handling
             if (e.key === 'Escape') {
-                const panels = ['help-panel', 'admin-panel', 'custom-modal'];
+                const panels = ['help-panel', 'admin-panel', 'custom-modal', 'text-editor-modal'];
                 panels.forEach(id => document.getElementById(id).classList.add('hidden'));
                 document.getElementById('export-menu').classList.add('hidden');
                 const arrow = document.getElementById('export-arrow');
@@ -513,6 +720,7 @@
                     case 'e': e.preventDefault(); toggleExportMenu(); break;
                     case 'm': e.preventDefault(); toggleSelectionMode(); break;
                     case 'c': e.preventDefault(); deleteAllChats(); break;
+                    case 'p': e.preventDefault(); togglePanel('settings-panel'); break;
                 }
             }
         });
@@ -525,13 +733,89 @@
         let currentGeminiKeyIndex = 0;
         let currentGroqKeyIndex = 0;
         let isGenerating = false;
+        let modelParams = { 
+            temperature: 1.0, tempEnabled: false,
+            topP: 0.95, topPEnabled: false,
+            maxTokens: 4096, tokensEnabled: false 
+        };
         let isContextAware = true;
         let currentAbortController = null;
         let isSelectionMode = false;
+        let userHasScrolledUp = false;
         let selectedChatIds = new Set();
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
         let allUsers = []; 
+        
+        async function updateKeyStatus(provider, key, status, error = null) {
+            if (!key || !currentUser) return;
+            // Use a stable hash-like ID for the key to avoid exposing it while tracking
+            const keyId = btoa(key).substring(0, 24).replace(/[/+=]/g, '');
+            const docRef = doc(db, "key_metrics", `${provider}_${keyId}`);
+            
+            const updateData = {
+                provider,
+                status, // 'ACTIVE', 'ERROR', 'RATE_LIMIT', 'UNAUTHORIZED'
+                lastUsed: Date.now(),
+                keySnippet: key.substring(0, 6) + "..." + key.slice(-4)
+            };
+
+            if (status === 'ACTIVE') {
+                updateData.lastSuccess = Date.now();
+                updateData.lastError = null; 
+            } else {
+                updateData.lastError = (error || "UNKNOWN_ERR").substring(0, 100);
+                updateData.lastErrorTime = Date.now();
+            }
+
+            try {
+                const snap = await getDoc(docRef);
+                if (snap.exists()) {
+                    const d = snap.data();
+                    updateData.successCount = (d.successCount || 0) + (status === 'ACTIVE' ? 1 : 0);
+                    updateData.errorCount = (d.errorCount || 0) + (status !== 'ACTIVE' ? 1 : 0);
+                    await updateDoc(docRef, updateData);
+                } else {
+                    updateData.successCount = status === 'ACTIVE' ? 1 : 0;
+                    updateData.errorCount = status !== 'ACTIVE' ? 1 : 0;
+                    await setDoc(docRef, updateData);
+                }
+            } catch (e) { console.warn("Metrics_Sync_Error", e); }
+        }
+
+        function loadKeyMetrics() {
+            onSnapshot(collection(db, "key_metrics"), (snapshot) => {
+                const container = document.getElementById('admin-key-metrics');
+                if (!container) return;
+                
+                let html = '';
+                snapshot.forEach(doc => {
+                    const m = doc.data();
+                    const isErr = m.status !== 'ACTIVE';
+                    const lastTime = new Date(m.lastUsed).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit'});
+                    
+                    html += `
+                        <div class="border border-gray-800 p-2 rounded bg-black/40 flex flex-col gap-1 hover:border-gray-700 transition-colors">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold ${m.provider === 'groq' ? 'text-orange-400' : 'text-blue-400'}">${m.provider.toUpperCase()} // ${m.keySnippet}</span>
+                                <span class="px-1 py-0.5 rounded ${isErr ? 'bg-red-900/30 text-red-400' : 'bg-green-900/30 text-green-400'} text-[7px] font-bold">
+                                    ${m.status}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-x-2 text-[8px] text-gray-500 uppercase">
+                                <div>OK: <span class="text-gray-300">${m.successCount || 0}</span></div>
+                                <div>FAIL: <span class="${m.errorCount > 0 ? 'text-red-500' : 'text-gray-300'}">${m.errorCount || 0}</span></div>
+                                <div class="col-span-2 mt-1 truncate border-t border-gray-800/50 pt-1">
+                                    LAST: <span class="text-gray-400">${lastTime}</span> 
+                                    ${m.lastError ? `<span class="text-red-900 ml-1">>> ${m.lastError}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html || '<div class="text-gray-600 italic p-4 text-center col-span-full">NO_METRICS_RECORDED</div>';
+            });
+        }
 
         // --- MARKED CUSTOMIZATION ---
         const renderer = new marked.Renderer();
@@ -663,12 +947,21 @@
             // Force awareness to true (default state)
             window.toggleAwareness(true);
 
+            // Reset parameters
+            modelParams = { 
+                temperature: 1.0, tempEnabled: false,
+                topP: 0.95, topPEnabled: false,
+                maxTokens: 4096, tokensEnabled: false 
+            };
+            updateParamUI();
+
             // Persist to Firebase
             if (currentUser) {
                 try {
                     const batchUpdate = {
                         'preferences.defaultTextModel': defaultText,
-                        'preferences.defaultSTTModel': defaultSTT
+                        'preferences.defaultSTTModel': defaultSTT,
+                        'preferences.modelParams': modelParams
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
@@ -937,6 +1230,7 @@
                 await loadChatHistory();
                 if (isAdmin) {
                     loadUserRegistry();
+                    loadKeyMetrics();
                 }
             } else {
                 status.innerText = "NO_SESSION_FOUND...REDIRECTING_TO_LOGIN";
@@ -1073,6 +1367,65 @@
             }
         }
 
+        function updateParamUI() {
+            const t = document.getElementById('param-temp');
+            const p = document.getElementById('param-top-p');
+            const tk = document.getElementById('param-tokens');
+            
+            const tt = document.getElementById('toggle-temp');
+            const tp = document.getElementById('toggle-top-p');
+            const tkn = document.getElementById('toggle-tokens');
+            
+            if (t) { t.value = modelParams.temperature; document.getElementById('val-temp').innerText = modelParams.temperature.toFixed(1); }
+            if (p) { p.value = modelParams.topP; document.getElementById('val-top-p').innerText = modelParams.topP.toFixed(2); }
+            if (tk) { tk.value = modelParams.maxTokens; }
+
+            if (tt) { tt.checked = !!modelParams.tempEnabled; toggleParamVisibility('temp', tt.checked); }
+            if (tp) { tp.checked = !!modelParams.topPEnabled; toggleParamVisibility('top-p', tp.checked); }
+            if (tkn) { tkn.checked = !!modelParams.tokensEnabled; toggleParamVisibility('tokens', tkn.checked); }
+        }
+
+        function toggleParamVisibility(id, enabled) {
+            const el = document.getElementById(`container-${id}`);
+            if (el) el.style.opacity = enabled ? '1' : '0.3';
+        }
+
+        // Live listeners for range sliders and toggles
+        const initParamListeners = () => {
+            const tempEl = document.getElementById('param-temp');
+            const topPEl = document.getElementById('param-top-p');
+            if (tempEl) {
+                tempEl.addEventListener('input', (e) => {
+                    document.getElementById('val-temp').innerText = parseFloat(e.target.value).toFixed(1);
+                });
+            }
+            if (topPEl) {
+                topPEl.addEventListener('input', (e) => {
+                    document.getElementById('val-top-p').innerText = parseFloat(e.target.value).toFixed(2);
+                });
+            }
+
+            ['temp', 'top-p', 'tokens'].forEach(id => {
+                const cb = document.getElementById(`toggle-${id}`);
+                if (cb) cb.addEventListener('change', (e) => toggleParamVisibility(id, e.target.checked));
+            });
+        };
+
+        window.saveModelParams = async () => {
+            modelParams.temperature = parseFloat(document.getElementById('param-temp').value);
+            modelParams.tempEnabled = document.getElementById('toggle-temp').checked;
+            
+            modelParams.topP = parseFloat(document.getElementById('param-top-p').value);
+            modelParams.topPEnabled = document.getElementById('toggle-top-p').checked;
+            
+            modelParams.maxTokens = parseInt(document.getElementById('param-tokens').value) || 0;
+            modelParams.tokensEnabled = document.getElementById('toggle-tokens').checked;
+            
+            await saveUserPreference('modelParams', modelParams);
+            window.showToast("PARAMETERS_SAVED", "success");
+            togglePanel('settings-panel');
+        };
+
         function populateSelectors() {
             const tSelect = document.getElementById('text-model-select');
             const sSelect = document.getElementById('stt-model-select');
@@ -1086,6 +1439,13 @@
             if (userPrefs.defaultSTTModel && config.sttModels.includes(userPrefs.defaultSTTModel)) {
                 sSelect.value = userPrefs.defaultSTTModel;
             }
+
+            // Load parameters
+            if (userPrefs.modelParams) {
+                modelParams = { ...modelParams, ...userPrefs.modelParams };
+            }
+            updateParamUI();
+            initParamListeners();
 
             // Listeners for persistence
             tSelect.onchange = (e) => saveUserPreference('defaultTextModel', e.target.value);
@@ -1108,10 +1468,60 @@
             });
         }
 
+        async function extractFileContent(file) {
+            if (file.type.startsWith('image/')) return null;
+
+            if (file.type === 'application/pdf') {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let fullText = "";
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + "\n";
+                    }
+                    return fullText;
+                } catch (e) {
+                    console.error("PDF extraction failed:", e);
+                    return "[ERROR_EXTRACTING_PDF_CONTENT]";
+                }
+            }
+
+            // Default to text extraction for other types (txt, csv, code, etc.)
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve("[ERROR_READING_FILE_CONTENT]");
+                reader.readAsText(file);
+            });
+        }
+
         // Auto-resize textarea logic
         const userInput = document.getElementById('user-input');
+        const TEXT_TO_FILE_THRESHOLD = 500; // Threshold for large text conversion
+
+        const convertTextToFile = (text) => {
+            const blob = new Blob([text], { type: 'text/plain' });
+            const fileName = `pasted_content_${new Date().getTime()}.txt`;
+            const file = new File([blob], fileName, { type: 'text/plain' });
+            window.handleFiles([file]);
+            userInput.value = '';
+            adjustHeight(userInput);
+            window.showToast("LARGE_TEXT_CONVERTED_TO_ATTACHMENT", "info");
+        };
+
         const adjustHeight = (el) => {
             if (!el) return;
+            
+            // Check for large/bulk text input
+            if (el.value.length > TEXT_TO_FILE_THRESHOLD) {
+                convertTextToFile(el.value);
+                return;
+            }
+
             // Prevent layout thrashing by using auto then scrollHeight
             el.style.height = 'auto';
             const nextHeight = el.scrollHeight;
@@ -1148,6 +1558,7 @@
             if (isGenerating) {
                 stopGeneration();
             } else {
+                userHasScrolledUp = false; // Force auto-scroll for new messages
                 sendMessage();
                 // Reset height and overflow to defaults after sending
                 userInput.style.height = '';
@@ -1188,10 +1599,15 @@
                 currentChatId = newChat.id;
             }
 
+            const userTimestamp = Date.now();
             const userDisplayContent = text + (attachmentData.length > 0 ? `\n\n[ATTACHMENTS: ${attachmentData.map(f => f.name).join(', ')}]` : '');
-            appendMessage('user', userDisplayContent);
+            appendMessage('user', userDisplayContent, userTimestamp);
+
+            const processedAttachments = await Promise.all(attachmentData.map(async f => {
+                const content = await extractFileContent(f);
+                return { file: f, content: content };
+            }));
             
-            // Clear inputs immediately
             inputEl.value = '';
             attachments = [];
             document.getElementById('attachment-preview').innerHTML = '';
@@ -1199,8 +1615,6 @@
             const model = document.getElementById('text-model-select').value;
             
             try {
-                // Save user message first to guarantee ordering in Firestore
-                const userTimestamp = Date.now();
                 await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
@@ -1215,11 +1629,24 @@
                     });
                 }
 
-                window.showLoading("GENERATING_RESPONSE...");
-                const response = await callAIWithFailover(text, attachmentData, model, currentAbortController.signal, history);
-                appendMessage('bot', response);
+                window.showLoading("INITIALIZING_STREAM...");
+                const botMsgHandles = appendMessage('bot', "", userTimestamp + 10);
+                const win = document.getElementById('chat-window');
+
+                const onUpdate = (fullText) => {
+                    window.hideLoading();
+                    botMsgHandles.div.setAttribute('data-raw-content', fullText);
+                    botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                    
+                    // Smooth auto-scroll only if user is at the bottom
+                    if (!userHasScrolledUp) {
+                        win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
+                    }
+                    updateMinimap();
+                };
+
+                const response = await callAIWithFailover(text, processedAttachments, model, currentAbortController.signal, history, onUpdate);
                 
-                // Save bot response with distinct timestamp (ensuring it's after user)
                 await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'bot', content: response, timestamp: userTimestamp + 10
                 });
@@ -1229,9 +1656,16 @@
                 }
             } catch (err) {
                 if (err.name === 'AbortError') {
-                    appendMessage('bot', "_Generation stopped by user._");
+                    const win = document.getElementById('chat-window');
+                    const lastBotMsg = win.querySelector('.bg-gray-900:last-child');
+                    if (lastBotMsg) {
+                        const raw = lastBotMsg.getAttribute('data-raw-content') || "";
+                        const abortedText = raw + "\n\n_Generation stopped by user._";
+                        lastBotMsg.setAttribute('data-raw-content', abortedText);
+                        lastBotMsg.querySelector('.markdown-body').innerHTML = marked.parse(abortedText);
+                    }
                 } else {
-                    appendMessage('bot', "ERROR: " + err.message);
+                    appendMessage('bot', "ERROR: " + err.message, Date.now());
                 }
             } finally {
                 window.hideLoading();
@@ -1243,13 +1677,17 @@
             }
         };
 
-        async function callAIWithFailover(prompt, files, modelValue, signal, history = []) {
+        async function callAIWithFailover(prompt, processedAttachments, modelValue, signal, history = [], onUpdate) {
             const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['gemini', modelValue];
             const isGroq = provider.toLowerCase() === 'groq';
             const keys = isGroq ? config.groqKeys : config.geminiKeys;
             let keyIndex = isGroq ? currentGroqKeyIndex : currentGeminiKeyIndex;
 
-            if (!keys || keys.length === 0) return `ERROR: NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`;
+            if (!keys || keys.length === 0) {
+                const err = `ERROR: NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`;
+                if (onUpdate) onUpdate(err);
+                return err;
+            }
 
             for (let i = 0; i < keys.length; i++) {
                 if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -1257,87 +1695,168 @@
                 const idx = (keyIndex + i) % keys.length;
                 const currentKey = keys[idx];
                 try {
-                    let response;
+                    let response = "";
+                    const handleUpdate = (chunk) => {
+                        response += chunk;
+                        if (onUpdate) onUpdate(response);
+                    };
+
                     if (isGroq) {
-                        response = await fetchGroq(prompt, files, modelName, currentKey, signal, history);
+                        await fetchGroq(prompt, processedAttachments, modelName, currentKey, signal, history, handleUpdate);
                         currentGroqKeyIndex = idx;
                     } else {
-                        response = await fetchGemini(prompt, files, modelName, currentKey, signal, history);
+                        await fetchGemini(prompt, processedAttachments, modelName, currentKey, signal, history, handleUpdate);
                         currentGeminiKeyIndex = idx;
                     }
+                    updateKeyStatus(provider, currentKey, 'ACTIVE');
                     return response;
                 } catch (err) {
                     if (err.name === 'AbortError') throw err;
                     console.error(`${provider} Key ${idx} failed:`, err);
+                    
+                    let status = 'ERROR';
+                    if (err.message.includes('429')) status = 'RATE_LIMIT';
+                    else if (err.message.includes('401') || err.message.includes('403')) status = 'UNAUTHORIZED';
+                    
+                    updateKeyStatus(provider, currentKey, status, err.message);
+                    
+                    if (onUpdate) onUpdate(""); 
                 }
             }
-            return "ERROR: ALL API KEYS FAILED OR EXHAUSTED.";
+            const finalErr = "ERROR: ALL API KEYS FAILED OR EXHAUSTED.";
+            if (onUpdate) onUpdate(finalErr);
+            return finalErr;
         }
 
         async function generateIntelligentTitle(chatId, userPrompt, aiResponse, modelValue) {
             try {
-                const titlePrompt = `BASED_ON_THIS_USER_PROMPT: "${userPrompt.substring(0, 200)}" \nAND_AI_RESPONSE: "${aiResponse.substring(0, 200)}"\n\nGENERATE_A_CONCISE_DESCRIPTIVE_TITLE_FOR_THIS_CHAT. \n- MAX_5_WORDS\n- NO_QUOTES\n- NO_PERIODS\n- UPPERCASE_OR_RAW_STYLE\n- OUTPUT_ONLY_THE_TITLE`;
+                // Use a larger context for more accurate thematic extraction
+                const userSnippet = userPrompt.substring(0, 500);
+                const aiSnippet = aiResponse.substring(0, 500);
                 
+                const titlePrompt = `GENERATE_CHAT_TITLE_DIRECTIVE:
+1. ANALYZE_CONTEXT:
+   - USER: "${userSnippet}"
+   - AI: "${aiSnippet}"
+2. REQUIREMENTS:
+   - STYLE: RAW_UNFILTERED_TECHNICAL
+   - FORMAT: UPPERCASE_UNDERSCORES_OR_CLEAN_TEXT
+   - LENGTH: MAX_6_WORDS
+   - RESTRICTIONS: NO_QUOTES, NO_PUNCTUATION, NO_MARKDOWN
+3. OUTPUT: ONLY_THE_TITLE_STRING`;
+
                 const title = await callAIWithFailover(titlePrompt, [], modelValue, null, []);
-                const cleanTitle = title.replace(/["'#*]/g, "").trim().substring(0, 50);
-                if (cleanTitle && !cleanTitle.includes("ERROR:")) {
-                    await updateDoc(doc(db, "chats", chatId), { title: cleanTitle });
+                
+                // Scrub AI responses that might include chatter or prefixes
+                let cleanTitle = title.replace(/["'#*._-]/g, " ").replace(/\s+/g, "_").trim().toUpperCase();
+                
+                // If AI returns a sentence or includes "TITLE IS", try to extract the core
+                if (cleanTitle.includes("TITLE_IS_")) cleanTitle = cleanTitle.split("TITLE_IS_")[1];
+                
+                // Final validation to ensure we don't save an error as a title
+                if (cleanTitle && !cleanTitle.includes("ERROR") && !cleanTitle.includes("FAILED") && cleanTitle.length > 2) {
+                    await updateDoc(doc(db, "chats", chatId), { title: cleanTitle.substring(0, 40) });
                 } else {
-                    const fallback = userPrompt.substring(0, 30).trim() || "NEW_CHAT";
-                    await updateDoc(doc(db, "chats", chatId), { title: fallback });
+                    // Better heuristic fallback: take first 4 words of prompt
+                    const fallback = userPrompt.split(/\s+/).slice(0, 4).join('_').toUpperCase().replace(/[^A-Z0-0_]/g, '');
+                    await updateDoc(doc(db, "chats", chatId), { title: fallback || "UNTITLED_SESSION" });
                 }
             } catch (e) {
                 console.warn("Title generation failed:", e);
             }
         }
 
-        async function fetchGemini(prompt, files, model, key, signal, history = []) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        async function fetchGemini(prompt, attachments, model, key, signal, history = [], onUpdate) {
+            const isStreaming = typeof onUpdate === 'function';
+            const endpoint = isStreaming ? 'streamGenerateContent' : 'generateContent';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${key}${isStreaming ? '&alt=sse' : ''}`;
+            
             let contents = [];
-
             if (history.length > 0) {
                 contents = history.map(h => ({
                     role: h.role === 'assistant' ? 'model' : 'user',
                     parts: [{ text: h.content }]
                 }));
-                if (files.length > 0) {
-                    const lastMsg = contents[contents.length - 1];
-                    for (const file of files) {
-                        if (file.type.startsWith('image/')) {
-                            const b64 = await fileToBase64(file);
-                            lastMsg.parts.push({ inline_data: { mime_type: file.type, data: b64 } });
-                        } else {
-                            lastMsg.parts[0].text += `\n[File Attachment: ${file.name}]`;
-                        }
+                const lastMsg = contents[contents.length - 1];
+                for (const {file, content} of attachments) {
+                    if (file.type.startsWith('image/')) {
+                        const b64 = await fileToBase64(file);
+                        lastMsg.parts.push({ inline_data: { mime_type: file.type, data: b64 } });
+                    } else if (content) {
+                        lastMsg.parts[0].text += `\n\n--- BEGIN_FILE: ${file.name} ---\n${content}\n--- END_FILE: ${file.name} ---`;
                     }
                 }
             } else {
                 const parts = [{ text: prompt || "Analyzing provided content..." }];
-                for (const file of files) {
+                for (const {file, content} of attachments) {
                     if (file.type.startsWith('image/')) {
                         const b64 = await fileToBase64(file);
                         parts.push({ inline_data: { mime_type: file.type, data: b64 } });
-                    } else {
-                        parts[0].text += `\n[File Attachment: ${file.name}]`;
+                    } else if (content) {
+                        parts[0].text += `\n\n--- BEGIN_FILE: ${file.name} ---\n${content}\n--- END_FILE: ${file.name} ---`;
                     }
                 }
                 contents.push({ role: 'user', parts: parts });
             }
 
+            const generationConfig = {};
+            if (modelParams.tempEnabled) generationConfig.temperature = modelParams.temperature;
+            if (modelParams.topPEnabled) generationConfig.topP = modelParams.topP;
+            if (modelParams.tokensEnabled && modelParams.maxTokens > 0) generationConfig.maxOutputTokens = modelParams.maxTokens;
+
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: contents }),
+                body: JSON.stringify({ 
+                    contents: contents,
+                    generationConfig: generationConfig
+                }),
                 signal: signal
             });
+
             if (!res.ok) throw new Error(await res.text());
-            const data = await res.json();
-            return data.candidates[0].content.parts[0].text;
+
+            if (!isStreaming) {
+                const data = await res.json();
+                return data.candidates[0].content.parts[0].text;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(line.substring(6));
+                            const text = data.candidates[0].content.parts[0].text;
+                            if (text) onUpdate(text);
+                        } catch (e) {}
+                    }
+                }
+            }
         }
 
-        async function fetchGroq(prompt, files, model, key, signal, history = []) {
-            const enrichedPrompt = files.length > 0 ? 
-                `${prompt}\n\n[USER ATTACHED FILES: ${files.map(f => f.name).join(', ')}]` : prompt;
+        async function fetchGroq(prompt, attachments, model, key, signal, history = [], onUpdate) {
+            let enrichedPrompt = prompt;
+            if (attachments.length > 0) {
+                enrichedPrompt += "\n\n[USER_ATTACHED_FILES_CONTENT]";
+                for (const {file, content} of attachments) {
+                    if (content) {
+                        enrichedPrompt += `\n\n--- FILE: ${file.name} ---\n${content}`;
+                    } else {
+                        enrichedPrompt += `\n\n--- FILE: ${file.name} (IMAGE_OR_BINARY) ---`;
+                    }
+                }
+            }
 
             let messages = [];
             if (history.length > 0) {
@@ -1347,67 +1866,201 @@
                 messages = [{ role: "user", content: enrichedPrompt }];
             }
 
+            const isStreaming = typeof onUpdate === 'function';
+
+            const body = {
+                model: model,
+                messages: messages,
+                stream: isStreaming
+            };
+            if (modelParams.tempEnabled) body.temperature = modelParams.temperature;
+            if (modelParams.topPEnabled) body.top_p = modelParams.topP;
+            if (modelParams.tokensEnabled && modelParams.maxTokens > 0) body.max_tokens = modelParams.maxTokens;
+
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                body: JSON.stringify({
-                    model: model,
-                    messages: messages
-                }),
+                body: JSON.stringify(body),
                 signal: signal
             });
+
             if (!res.ok) throw new Error(await res.text());
-            const data = await res.json();
-            return data.choices[0].message.content;
+
+            if (!isStreaming) {
+                const data = await res.json();
+                return data.choices[0].message.content;
+            }
+
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine || trimmedLine === "data: [DONE]") continue;
+                    if (trimmedLine.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(trimmedLine.substring(6));
+                            const delta = data.choices[0].delta.content;
+                            if (delta) onUpdate(delta);
+                        } catch (e) {}
+                    }
+                }
+            }
         }
 
-        function appendMessage(role, content) {
+        function appendMessage(role, content, timestamp = Date.now()) {
             const win = document.getElementById('chat-window');
             const div = document.createElement('div');
+            div.dataset.role = role;
             const marginClass = role === 'user' ? 'ml-4 sm:ml-12 md:ml-20 lg:ml-32' : 'mr-4 sm:mr-12 md:mr-20 lg:mr-32';
-            // Added min-w-0 and flex-col to force internal layout containment
             div.className = `p-3 md:p-4 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col overflow-hidden`;
             
             const rawContent = document.createElement('div');
             rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto";
+            
+            // Apply markdown parsing to both user and bot messages for consistent communication experience
             rawContent.innerHTML = marked.parse(content || "");
             
             const actionsDiv = document.createElement('div');
             actionsDiv.className = "flex gap-4 mt-2";
 
             const copyBtn = document.createElement('button');
-            copyBtn.setAttribute('aria-label', 'Copy raw message content');
-            copyBtn.innerHTML = `
-                <div class="flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
-                    <span>COPY_RAW</span>
-                </div>
-            `;
             copyBtn.className = "text-[10px] text-gray-400 hover:text-white focus:text-white transition-colors focus:outline-none";
             copyBtn.onclick = () => {
-                navigator.clipboard.writeText(content);
+                const currentText = div.getAttribute('data-raw-content') || content;
+                navigator.clipboard.writeText(currentText);
                 window.showToast("RAW_CONTENT_COPIED", "success");
             };
+            copyBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg><span>COPY_RAW</span></div>`;
 
             const pdfBtn = document.createElement('button');
-            pdfBtn.setAttribute('aria-label', 'Export this message as PDF');
-            pdfBtn.innerHTML = `
-                <div class="flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                    <span>EXPORT_PDF</span>
-                </div>
-            `;
             pdfBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
             pdfBtn.onclick = () => window.exportSinglePDF(div);
+            pdfBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg><span>EXPORT_PDF</span></div>`;
+
+            const forkBtn = document.createElement('button');
+            forkBtn.className = "text-[10px] text-gray-400 hover:text-green-400 focus:text-green-400 transition-colors focus:outline-none";
+            forkBtn.onclick = () => window.forkConversation(currentChatId, timestamp);
+            forkBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h8m0 0l-4-4m4 4l-4 4m0 6H8m0 0l4 4m-4-4l4-4"></path></svg><span>FORK</span></div>`;
 
             actionsDiv.appendChild(copyBtn);
             actionsDiv.appendChild(pdfBtn);
+            actionsDiv.appendChild(forkBtn);
 
             div.appendChild(rawContent);
             div.appendChild(actionsDiv);
+            div.setAttribute('data-raw-content', content || "");
+            
             win.appendChild(div);
-            win.scrollTop = win.scrollHeight;
+            
+            if (!userHasScrolledUp) {
+                win.scrollTop = win.scrollHeight;
+            }
+            
+            updateMinimap();
+            return { div, rawContent };
         }
+
+        // --- NEW SCROLL & MINIMAP LOGIC ---
+        window.scrollToEdge = (dir) => {
+            const win = document.getElementById('chat-window');
+            if (dir === 'top') {
+                win.scrollTo({ top: 0, behavior: 'smooth' });
+                userHasScrolledUp = true;
+            } else {
+                win.scrollTo({ top: win.scrollHeight, behavior: 'smooth' });
+                userHasScrolledUp = false;
+            }
+        };
+
+        function updateMinimap() {
+            const win = document.getElementById('chat-window');
+            const track = document.getElementById('minimap-track');
+            if (!win || !track) return;
+
+            const totalHeight = Math.max(win.scrollHeight, 1);
+            const viewHeight = win.clientHeight;
+            
+            // Toggle jump buttons visibility
+            const topBtn = document.getElementById('jump-top');
+            const bottomBtn = document.getElementById('jump-bottom');
+            if (topBtn) topBtn.classList.toggle('visible', win.scrollTop > 200);
+            if (bottomBtn) bottomBtn.classList.toggle('visible', win.scrollTop < totalHeight - viewHeight - 200);
+
+            track.innerHTML = '';
+            const messages = win.querySelectorAll('[data-role]');
+            const fragment = document.createDocumentFragment();
+            
+            messages.forEach(msg => {
+                const rect = msg.offsetTop;
+                const height = msg.offsetHeight;
+                const role = msg.dataset.role;
+                
+                const posPercent = (rect / totalHeight) * 100;
+                const heightPercent = (height / totalHeight) * 100;
+                
+                const marker = document.createElement('div');
+                marker.className = `minimap-marker marker-${role}`;
+                marker.style.top = `${posPercent}%`;
+                marker.style.height = `${Math.max(heightPercent, 1)}%`;
+                marker.title = `JUMP_TO_${role.toUpperCase()}_MESSAGE`;
+                marker.onclick = (e) => {
+                    e.stopPropagation();
+                    msg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                };
+                fragment.appendChild(marker);
+
+                const codes = msg.querySelectorAll('pre');
+                codes.forEach(code => {
+                    const codeTop = msg.offsetTop + code.offsetTop;
+                    const codePosPercent = (codeTop / totalHeight) * 100;
+                    const cMarker = document.createElement('div');
+                    cMarker.className = 'minimap-marker marker-code';
+                    cMarker.style.top = `${codePosPercent}%`;
+                    cMarker.style.height = '4px';
+                    cMarker.title = "JUMP_TO_CODE_BLOCK";
+                    cMarker.onclick = (e) => {
+                        e.stopPropagation();
+                        code.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    };
+                    fragment.appendChild(cMarker);
+                });
+            });
+
+            track.appendChild(fragment);
+
+            // Allow clicking track to jump to relative position
+            track.onclick = (e) => {
+                if (e.target !== track) return;
+                const rect = track.getBoundingClientRect();
+                const clickPos = (e.clientY - rect.top) / rect.height;
+                win.scrollTo({ top: totalHeight * clickPos - (viewHeight / 2), behavior: 'smooth' });
+            };
+        }
+
+        // Initialize Scroll Listener
+        document.addEventListener('DOMContentLoaded', () => {
+            const win = document.getElementById('chat-window');
+            if (win) {
+                win.addEventListener('scroll', () => {
+                    const atBottom = win.scrollHeight - win.scrollTop <= win.clientHeight + 50;
+                    userHasScrolledUp = !atBottom;
+                    updateMinimap();
+                });
+            }
+            // Resize observer for minimap updates
+            const ro = new ResizeObserver(() => updateMinimap());
+            if (win) ro.observe(win);
+        });
 
         // --- SPEECH TO TEXT (CUSTOM API IMPLEMENTATION) ---
         let mediaRecorder = null;
@@ -1505,6 +2158,7 @@
                         if (!res.ok) throw new Error(await res.text());
                         const data = await res.json();
                         currentGroqKeyIndex = idx;
+                        updateKeyStatus('groq', currentKey, 'ACTIVE');
                         return data.text;
                     } else {
                         // Gemini STT via multimodal generateContent
@@ -1516,7 +2170,6 @@
                             body: JSON.stringify({
                                 contents: [{
                                     parts: [
-                                        { text: "Transcribe this audio exactly as heard. Output ONLY the transcription text." },
                                         { inline_data: { mime_type: "audio/webm", data: b64 } }
                                     ]
                                 }]
@@ -1525,10 +2178,14 @@
                         if (!res.ok) throw new Error(await res.text());
                         const data = await res.json();
                         currentGeminiKeyIndex = idx;
+                        updateKeyStatus('gemini', currentKey, 'ACTIVE');
                         return data.candidates[0].content.parts[0].text;
                     }
                 } catch (err) {
                     console.warn(`${provider} STT Key ${idx} failed, trying next...`, err);
+                    let status = 'ERROR';
+                    if (err.message.includes('429')) status = 'RATE_LIMIT';
+                    updateKeyStatus(provider, currentKey, status, err.message);
                 }
             }
             throw new Error("All STT API keys failed.");
@@ -1796,9 +2453,57 @@
             html2pdf().set(opt).from(container).save();
         };
 
+        window.forkConversation = async (chatId, timestamp) => {
+            if (!chatId || !timestamp) {
+                window.showToast("INVALID_FORK_POINT", "error");
+                return;
+            }
+            
+            window.showLoading("FORKING_CONVERSATION...");
+            try {
+                // 1. Get original chat metadata
+                const chatRef = doc(db, "chats", chatId);
+                const chatSnap = await getDoc(chatRef);
+                if (!chatSnap.exists()) throw new Error("ORIGINAL_CHAT_NOT_FOUND");
+                const originalData = chatSnap.data();
+
+                // 2. Create new chat
+                const newChatRef = await addDoc(collection(db, "chats"), {
+                    userId: currentUser.uid,
+                    createdAt: Date.now(),
+                    title: `FORKED: ${originalData.title || "UNTITLED"}`,
+                    isFork: true,
+                    forkSource: chatId
+                });
+
+                // 3. Get messages up to timestamp
+                const q = query(collection(db, `chats/${chatId}/messages`), where("timestamp", "<=", timestamp), orderBy("timestamp", "asc"));
+                const msgSnap = await getDocs(q);
+                
+                const batch = writeBatch(db);
+                msgSnap.forEach(msgDoc => {
+                    const mData = msgDoc.data();
+                    const newMsgRef = doc(collection(db, `chats/${newChatRef.id}/messages`));
+                    batch.set(newMsgRef, mData);
+                });
+                
+                await batch.commit();
+                
+                window.showToast("CONVERSATION_FORKED", "success");
+                loadSpecificChat(newChatRef.id);
+            } catch (err) {
+                console.error("Fork failed:", err);
+                window.showToast("FORK_FAILED: " + err.message, "error");
+            } finally {
+                window.hideLoading();
+            }
+        };
+
         window.createNewChat = () => {
             currentChatId = null;
+            userHasScrolledUp = false;
             document.getElementById('chat-window').innerHTML = '';
+            updateMinimap();
             // Clear visual active state in sidebar
             document.querySelectorAll('#chat-history > div').forEach(div => {
                 div.classList.remove('bg-blue-600/10', 'border-blue-500/40');
@@ -1832,10 +2537,18 @@
 
         function renderChatHistory(snapshot) {
             const hist = document.getElementById('chat-history');
+            const searchTerm = document.getElementById('chat-search')?.value.toLowerCase() || "";
             if (!hist) return;
             hist.innerHTML = '';
+            
+            let matchCount = 0;
             snapshot.forEach(chatDoc => {
                 const d = chatDoc.data();
+                const chatTitle = (d.title || "Untitled Chat").toLowerCase();
+                
+                if (searchTerm && !chatTitle.includes(searchTerm)) return;
+                matchCount++;
+
                 const container = document.createElement('div');
                 container.setAttribute('data-chat-id', chatDoc.id);
                 container.setAttribute('role', 'listitem');
@@ -1896,6 +2609,10 @@
                 container.appendChild(actions);
                 hist.appendChild(container);
             });
+
+            if (searchTerm && matchCount === 0) {
+                hist.innerHTML = '<div class="text-[10px] text-gray-600 italic p-4 text-center">NO_MATCHES_FOUND</div>';
+            }
         }
 
         window.deleteSelectedChats = async () => {
@@ -1980,6 +2697,7 @@
 
         async function loadSpecificChat(id) {
             currentChatId = id;
+            userHasScrolledUp = false; // Reset scroll state for new chat
             // Update visual active state in sidebar
             document.querySelectorAll('#chat-history > div').forEach(div => {
                 const isThis = div.getAttribute('data-chat-id') === id;
@@ -1999,8 +2717,9 @@
                 const querySnapshot = await getDocs(q);
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    appendMessage(data.role, data.content);
+                    appendMessage(data.role, data.content, data.timestamp);
                 });
+                updateMinimap();
             } catch (err) {
                 console.error("Error loading messages:", err);
             }
@@ -2008,6 +2727,14 @@
 
         // Drag and Drop implementation
         document.addEventListener('DOMContentLoaded', () => {
+            // Chat History Search Listener
+            const chatSearchInput = document.getElementById('chat-search');
+            if (chatSearchInput) {
+                chatSearchInput.addEventListener('input', () => {
+                    if (lastChatSnapshot) renderChatHistory(lastChatSnapshot);
+                });
+            }
+
             const dropZone = document.querySelector('section.flex-1');
             if (dropZone) {
                 ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -2039,10 +2766,13 @@
 
         // Handle File Attachments with Image Previews
         let attachments = [];
-        window.handleFiles = (files) => {
+        let editingFileIndex = -1;
+
+        window.renderAttachmentPreviews = () => {
             const preview = document.getElementById('attachment-preview');
-            Array.from(files).forEach(f => {
-                attachments.push(f);
+            preview.innerHTML = '';
+            
+            attachments.forEach((f, index) => {
                 const container = document.createElement('div');
                 container.className = "relative group flex items-center shrink-0";
                 
@@ -2059,27 +2789,86 @@
                                 </div>
                             </div>
                         `;
-                        container.querySelector('.remove-btn').addEventListener('click', () => {
-                            container.remove();
-                            attachments = attachments.filter(a => a !== f);
+                        container.querySelector('.remove-btn').addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            attachments.splice(index, 1);
+                            renderAttachmentPreviews();
                             document.getElementById('user-input').focus();
                         });
                     };
                     reader.readAsDataURL(f);
                 } else {
-                    container.className = "text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors focus-within:ring-1 focus-within:ring-blue-500";
+                    const isEditable = f.type.startsWith('text/') || f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.json') || f.name.includes('pasted_content_');
+                    container.className = `text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors focus-within:ring-1 focus-within:ring-blue-500 ${isEditable ? 'cursor-pointer' : ''}`;
+                    container.title = isEditable ? "CLICK_TO_EDIT" : f.name;
                     container.innerHTML = `
                         <span class="truncate max-w-[120px] text-gray-300 font-mono">${f.name}</span>
+                        ${isEditable ? '<span class="text-blue-500/50 text-[8px] font-bold">EDIT</span>' : ''}
                         <button type="button" aria-label="Remove file attachment ${f.name}" class="text-red-500 hover:text-red-400 focus:outline-none focus:ring-1 focus:ring-red-500 rounded px-1 remove-btn font-bold">×</button>
                     `;
-                    container.querySelector('.remove-btn').addEventListener('click', () => {
-                        container.remove();
-                        attachments = attachments.filter(a => a !== f);
+                    
+                    if (isEditable) {
+                        container.addEventListener('click', (e) => {
+                            if (e.target.closest('.remove-btn')) return;
+                            window.openTextEditor(index);
+                        });
+                    }
+
+                    container.querySelector('.remove-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        attachments.splice(index, 1);
+                        renderAttachmentPreviews();
                         document.getElementById('user-input').focus();
                     });
                 }
                 preview.appendChild(container);
             });
+        };
+
+        window.handleFiles = (files) => {
+            Array.from(files).forEach(f => attachments.push(f));
+            renderAttachmentPreviews();
+        };
+
+        window.openTextEditor = (index) => {
+            const file = attachments[index];
+            if (!file) return;
+            
+            window.showLoading("OPENING_EDITOR...");
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                window.hideLoading();
+                editingFileIndex = index;
+                const modal = document.getElementById('text-editor-modal');
+                document.getElementById('editor-filename').value = file.name;
+                document.getElementById('editor-content').value = e.target.result;
+                modal.classList.remove('hidden');
+                document.getElementById('editor-content').focus();
+            };
+            reader.onerror = () => {
+                window.hideLoading();
+                window.showToast("FAILED_TO_READ_FILE", "error");
+            };
+            reader.readAsText(file);
+        };
+
+        window.saveEditedText = () => {
+            const newName = document.getElementById('editor-filename').value || 'untitled.txt';
+            const newContent = document.getElementById('editor-content').value;
+            const blob = new Blob([newContent], { type: 'text/plain' });
+            const newFile = new File([blob], newName, { type: 'text/plain' });
+            
+            if (editingFileIndex > -1) {
+                attachments[editingFileIndex] = newFile;
+                renderAttachmentPreviews();
+                window.showToast("CHANGES_SAVED", "success");
+            }
+            window.closeTextEditor();
+        };
+
+        window.closeTextEditor = () => {
+            document.getElementById('text-editor-modal').classList.add('hidden');
+            editingFileIndex = -1;
         };
 
     </script>

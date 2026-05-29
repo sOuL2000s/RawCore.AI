@@ -33,36 +33,57 @@ This project is a standalone web application using Firebase.
 Apply the following rules in the Firebase Console to ensure data privacy while allowing the admin panel to function:
 
 ```javascript
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // User profiles
     match /users/{userId} {
+      // Allow a user to read their own profile
       allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Allow a user to create their own profile (e.g., on signup or first Google login)
       allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow a user to update their own profile (e.g., preferences)
       allow update: if request.auth != null && request.auth.uid == userId;
 
-      // Admin logic
+      // Admin specific permissions for users collection
+      // Allow admins to list (read all) users
       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Allow admins to update any user's profile (e.g., toggle isAdmin)
+      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Allow admins to delete any user's profile
+      allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-    
+
     // Global settings (Admin only for write, Auth for read)
     match /settings/main {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && 
+      allow write: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     // Chat history ownership
     match /chats/{chatId} {
-      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Allow users to read, update or delete chats they own
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
       
+      // Allow a user to create a new chat if they set themselves as the owner
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+
       match /messages/{messageId} {
-        // Inherit permissions from parent chat ownership
+        // Messages inherit permissions from parent chat ownership
         allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
       }
+    }
+
+    // API health metrics (Admin-only read, Auth write for tracking)
+    match /key_metrics/{metricId} {
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if request.auth != null;
     }
   }
 }
