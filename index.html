@@ -95,6 +95,15 @@
             --accent-hover: #2563eb;
         }
 
+        body.theme-comfort {
+            --bg-primary: #1e2227;
+            --bg-secondary: #282c34;
+            --border-ui: #3e4451;
+            --text-main: #abb2bf;
+            --accent: #61afef;
+            --accent-hover: #528bff;
+        }
+
         body { font-family: 'Fira Code', monospace; background-color: var(--bg-primary); color: var(--text-main); transition: background-color 0.3s, color 0.3s; }
         #sidebar, #chat-window, .sidebar-mobile, main, #splash-screen { background-color: var(--bg-primary) !important; }
         header, .border-b, .border-t, .border-r, .border-l, .glass, .scroll-btn, .markdown-body table th, .markdown-body table td, #chat-search, #text-model-select, #stt-model-select, .theme-btn { border-color: var(--border-ui) !important; }
@@ -579,6 +588,7 @@
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="window.applyTheme('default')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="default">ORIGINAL</button>
+                        <button onclick="window.applyTheme('comfort')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="comfort">EYE_COMFORT</button>
                         <button onclick="window.applyTheme('oled')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="oled">OLED_BLACK</button>
                         <button onclick="window.applyTheme('matrix')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="matrix">MATRIX_GLITCH</button>
                         <button onclick="window.applyTheme('cyberpunk')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="cyberpunk">CYBERPUNK</button>
@@ -1081,7 +1091,7 @@
         };
 
         window.applyTheme = async (theme, persist = true) => {
-            document.body.classList.remove('theme-oled', 'theme-matrix', 'theme-cyberpunk');
+            document.body.classList.remove('theme-oled', 'theme-matrix', 'theme-cyberpunk', 'theme-comfort');
             if (theme !== 'default') {
                 document.body.classList.add(`theme-${theme}`);
             }
