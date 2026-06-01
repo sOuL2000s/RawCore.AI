@@ -18,7 +18,7 @@ Thumbs.db
 .settings/
 
 # Project specific
-combined_project_files.txt
+*.txt
 
 # Firebase logs
 firebase-debug.log

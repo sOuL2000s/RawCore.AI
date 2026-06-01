@@ -59,11 +59,57 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
-        body { font-family: 'Fira Code', monospace; background-color: #0d1117; color: #e6edf3; }
-        .markdown-body { overflow-wrap: break-word; width: 100%; max-width: 100%; }
-        .markdown-body * { max-width: 100%; }
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --border-ui: #30363d;
+            --text-main: #e6edf3;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+        }
+
+        body.theme-matrix {
+            --bg-primary: #000000;
+            --bg-secondary: #050505;
+            --border-ui: #003b00;
+            --text-main: #00ff41;
+            --accent: #00ff41;
+            --accent-hover: #008f11;
+        }
+
+        body.theme-cyberpunk {
+            --bg-primary: #0d0221;
+            --bg-secondary: #1a0833;
+            --border-ui: #ff003c;
+            --text-main: #f9ea3c;
+            --accent: #00f3ff;
+            --accent-hover: #ff003c;
+        }
+
+        body.theme-oled {
+            --bg-primary: #000000;
+            --bg-secondary: #000000;
+            --border-ui: #1a1a1a;
+            --text-main: #ffffff;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+        }
+
+        body { font-family: 'Fira Code', monospace; background-color: var(--bg-primary); color: var(--text-main); transition: background-color 0.3s, color 0.3s; }
+        #sidebar, #chat-window, .sidebar-mobile, main, #splash-screen { background-color: var(--bg-primary) !important; }
+        header, .border-b, .border-t, .border-r, .border-l, .glass, .scroll-btn, .markdown-body table th, .markdown-body table td, #chat-search, #text-model-select, #stt-model-select, .theme-btn { border-color: var(--border-ui) !important; }
+        .glass, #export-menu, #admin-panel, #help-panel, #settings-panel, #text-editor-modal > div { background: var(--bg-secondary) !important; }
+        .bg-gray-800 { background-color: var(--bg-secondary) !important; opacity: 0.9; }
+        .bg-gray-900 { background-color: var(--bg-primary) !important; border: 1px solid var(--border-ui) !important; }
+        .text-blue-400, .text-blue-500, .text-blue-600, .markdown-body th, #loading-text { color: var(--accent) !important; }
+        .bg-blue-600, .loader { background-color: var(--accent) !important; border-top-color: var(--text-main) !important; color: var(--bg-primary) !important; }
+        .bg-blue-600:hover { background-color: var(--accent-hover) !important; }
+        .bg-red-600 { color: #ffffff !important; }
+        .border-blue-400, .border-blue-500, .border-blue-600, .toast { border-color: var(--accent) !important; }
+        
+        .markdown-body { overflow-wrap: break-word; width: 100%; max-width: 100%; color: var(--text-main); }
         .markdown-body pre { 
-            background: #161b22; 
+            background: var(--bg-secondary) !important; 
             padding: 1rem; 
             border-radius: 5px; 
             overflow-x: auto; 
@@ -73,6 +119,7 @@
             white-space: pre-wrap; 
             word-break: break-all;
             word-wrap: break-word;
+            border: 1px solid var(--border-ui);
         }
         .markdown-body code { white-space: pre-wrap; word-break: break-all; word-wrap: break-word; }
         .markdown-body table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; margin-bottom: 1rem; }
@@ -524,6 +571,20 @@
             </div>
             
             <div class="space-y-6 font-mono">
+                <!-- Theme Selection -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">VISUAL_THEME</span>
+                        <span class="text-[8px] text-gray-500 uppercase">System interface skin</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="window.applyTheme('default')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="default">ORIGINAL</button>
+                        <button onclick="window.applyTheme('oled')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="oled">OLED_BLACK</button>
+                        <button onclick="window.applyTheme('matrix')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="matrix">MATRIX_GLITCH</button>
+                        <button onclick="window.applyTheme('cyberpunk')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="cyberpunk">CYBERPUNK</button>
+                    </div>
+                </div>
+
                 <!-- Temperature -->
                 <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
                     <div class="flex items-center justify-between">
@@ -781,6 +842,7 @@
         let currentAbortController = null;
         let isSelectionMode = false;
         let userHasScrolledUp = false;
+        let currentTheme = 'default';
         let selectedChatIds = new Set();
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
@@ -993,6 +1055,9 @@
                 maxTokens: 4096, tokensEnabled: false 
             };
             updateParamUI();
+            
+            // Reset Theme
+            window.applyTheme('default', false);
 
             // Persist to Firebase
             if (currentUser) {
@@ -1000,16 +1065,42 @@
                     const batchUpdate = {
                         'preferences.defaultTextModel': defaultText,
                         'preferences.defaultSTTModel': defaultSTT,
-                        'preferences.modelParams': modelParams
+                        'preferences.modelParams': modelParams,
+                        'preferences.theme': 'default'
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
                     userPrefs.defaultSTTModel = defaultSTT;
+                    userPrefs.theme = 'default';
                     window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
                 } catch (e) {
                     console.error("Reset failed:", e);
                     window.showToast("RESET_FAILED", "error");
                 }
+            }
+        };
+
+        window.applyTheme = async (theme, persist = true) => {
+            document.body.classList.remove('theme-oled', 'theme-matrix', 'theme-cyberpunk');
+            if (theme !== 'default') {
+                document.body.classList.add(`theme-${theme}`);
+            }
+            currentTheme = theme;
+
+            // Update UI buttons
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                if (btn.getAttribute('data-theme') === theme) {
+                    btn.classList.add('border-blue-500', 'text-blue-500');
+                    btn.classList.remove('border-gray-700');
+                } else {
+                    btn.classList.remove('border-blue-500', 'text-blue-500');
+                    btn.classList.add('border-gray-700');
+                }
+            });
+
+            if (persist && currentUser) {
+                await saveUserPreference('theme', theme);
+                window.showToast(`THEME_UPDATED: ${theme.toUpperCase()}`, "success");
             }
         };
 
@@ -1485,6 +1576,11 @@
             }
             updateParamUI();
             initParamListeners();
+
+            // Load theme
+            if (userPrefs.theme) {
+                applyTheme(userPrefs.theme, false);
+            }
 
             // Listeners for persistence
             tSelect.onchange = (e) => saveUserPreference('defaultTextModel', e.target.value);
