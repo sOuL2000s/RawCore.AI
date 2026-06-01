@@ -3,8 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RawCore.AI</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E">
+    <title>RawCore.AI | Pure LLM Interface for Gemini & Groq</title>
+    <meta name="description" content="Experience raw, unfiltered AI interactions with Gemini and Groq. RawCore.AI provides a high-performance, terminal-inspired interface for developers with multi-key failover and multi-modal support.">
+    <meta name="keywords" content="RawCore, AI, Chatbot, Gemini, Groq, LLM, Unfiltered AI, Developer Tools, Speech to Text, Whisper AI, AI Interface">
+    <meta name="author" content="RawCore.AI">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://rawcoreai.netlify.app">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rawcoreai.netlify.app">
+    <meta property="og:title" content="RawCore.AI | Pure LLM Interface">
+    <meta property="og:description" content="A high-performance interface for Gemini and Groq. Zero system prompts, multi-modal support, and developer-centric tools.">
+    <meta property="og:image" content="https://rawcoreai.netlify.app/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://rawcoreai.netlify.app">
+    <meta property="twitter:title" content="RawCore.AI | Pure LLM Interface">
+    <meta property="twitter:description" content="A high-performance interface for Gemini and Groq. Zero system prompts, multi-modal support, and developer-centric tools.">
+    <meta property="twitter:image" content="https://rawcoreai.netlify.app/og-image.png">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "RawCore.AI",
+      "url": "https://rawcoreai.netlify.app",
+      "description": "Raw and unfiltered AI interface for Gemini and Groq models.",
+      "applicationCategory": "ProductivityApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <link rel="apple-touch-icon" href="logo.svg">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -241,9 +280,9 @@
     <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-black p-4 overflow-y-auto hidden" role="dialog" aria-labelledby="auth-title">
         <div class="glass p-6 md:p-8 rounded-lg w-full max-w-md my-auto">
             <h2 id="auth-title" class="text-2xl mb-6 font-bold text-blue-400">RAWCORE_LOGIN</h2>
-            <input type="email" id="auth-email" placeholder="Email" aria-label="Email address" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400">
+            <input type="email" id="auth-email" placeholder="Email" aria-label="Email address" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400" onkeydown="if(event.key === 'Enter'){ handleAuth('login'); }">
             <div class="relative">
-                <input type="password" id="auth-password" placeholder="Password" aria-label="Password" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400">
+                <input type="password" id="auth-password" placeholder="Password" aria-label="Password" class="w-full bg-transparent border border-gray-600 p-2 mb-4 rounded text-white placeholder-gray-400" onkeydown="if(event.key === 'Enter'){ handleAuth('login'); }">
                 <button onclick="togglePassword()" aria-label="Toggle password visibility" class="absolute right-2 top-2 text-xs text-gray-400 hover:text-white">VIEW</button>
             </div>
             <div class="flex gap-2 mb-4">
@@ -269,8 +308,8 @@
     <header class="border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
         <div class="flex items-center gap-1 sm:gap-3 overflow-hidden">
             <button type="button" onclick="toggleSidebar()" class="md:hidden text-gray-400 text-xl p-2" aria-label="Toggle Sidebar Menu">☰</button>
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-5 h-5 md:w-6 md:h-6 shrink-0" alt="RawCore Logo">
-            <div class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden xs:inline">[BETA]</span></div>
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-5 h-5 md:w-6 md:h-6 shrink-0" alt="RawCore.AI Logo - Pure LLM Interface">
+            <h1 class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden xs:inline">[BETA]</span></h1>
         </div>
         <div class="flex gap-1 md:gap-3 items-center shrink-0">
             <div id="user-identity" class="hidden flex-col items-end mr-1 md:mr-2 text-[8px] md:text-[9px] font-mono tracking-tighter leading-none">
@@ -1516,12 +1555,6 @@
         const adjustHeight = (el) => {
             if (!el) return;
             
-            // Check for large/bulk text input
-            if (el.value.length > TEXT_TO_FILE_THRESHOLD) {
-                convertTextToFile(el.value);
-                return;
-            }
-
             // Prevent layout thrashing by using auto then scrollHeight
             el.style.height = 'auto';
             const nextHeight = el.scrollHeight;
@@ -1538,6 +1571,14 @@
 
         // Paste logic for files and auto-resize text
         userInput.addEventListener('paste', (e) => {
+            // Check for large text paste and convert to file only on paste
+            const pastedText = e.clipboardData.getData('text');
+            if (pastedText && pastedText.length > TEXT_TO_FILE_THRESHOLD) {
+                e.preventDefault();
+                convertTextToFile(pastedText);
+                return;
+            }
+
             // Use requestAnimationFrame to ensure height is recalculated after browser renders pasted text
             requestAnimationFrame(() => adjustHeight(userInput));
             

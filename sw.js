@@ -10,6 +10,7 @@ const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './logo.svg',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css',
