@@ -157,7 +157,10 @@
         .markdown-body table::-webkit-scrollbar { height: 4px; }
         .markdown-body table::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
         .markdown-body th, .markdown-body td { border: 1px solid #30363d; padding: 6px 10px; text-align: left; min-width: 100px; }
-        .markdown-body th { background-color: #161b22; color: #3b82f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .markdown-body th { background-color: #161b22; color: #3b82f6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; position: relative; user-select: none; }
+        .markdown-body th:hover { background-color: #1c2128; color: #fff; }
+        .markdown-body th[data-order="asc"]::after { content: ' ▲'; font-size: 8px; position: absolute; right: 4px; }
+        .markdown-body th[data-order="desc"]::after { content: ' ▼'; font-size: 8px; position: absolute; right: 4px; }
         .markdown-body tr:nth-child(2n) { background-color: rgba(48, 54, 61, 0.1); }
         .markdown-body img { max-width: 100%; height: auto; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
@@ -262,6 +265,22 @@
         .code-block-container.collapsed .code-expand-btn { display: block; }
         .code-collapse-btn { display: none; position: absolute; bottom: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; }
         .code-block-container:not(.collapsed) .code-collapse-btn { display: block; }
+
+        /* JSON Tree Viewer Styles */
+        .json-tree { font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; color: #abb2bf; }
+        .json-tree-item { margin-left: 1.2rem; position: relative; }
+        .json-tree-item::before { content: ''; position: absolute; left: -0.8rem; top: 0; bottom: 0; border-left: 1px solid #30363d; }
+        .json-tree-toggle { cursor: pointer; user-select: none; color: #61afef; font-weight: bold; margin-right: 4px; display: inline-block; width: 10px; }
+        .json-tree-toggle:hover { color: #d19a66; }
+        .json-tree-key { color: #e06c75; font-weight: 500; }
+        .json-tree-value-string { color: #98c379; }
+        .json-tree-value-number { color: #d19a66; }
+        .json-tree-value-boolean { color: #c678dd; }
+        .json-tree-value-null { color: #56b6c2; font-style: italic; }
+        .json-tree-collapsed > .json-tree-children { display: none; }
+        .json-tree-collapsed > .json-tree-toggle::after { content: '+'; }
+        .json-tree-expanded > .json-tree-toggle::after { content: '-'; }
+        .json-tree-empty-icon { width: 10px; display: inline-block; }
 
         #floating-toc {
             position: fixed;
@@ -518,8 +537,17 @@
                 <!-- Chats will be injected here -->
             </div>
             
+            <!-- Clipboard History -->
+            <div id="clipboard-history-container" class="mt-auto border-t border-gray-800 pt-3 pb-2 hidden">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-[8px] font-bold text-blue-400 tracking-widest uppercase">CLIPBOARD_LOG</span>
+                    <button onclick="window.clearClipboardHistory()" class="text-red-500 hover:text-red-400 text-[8px] font-bold">[CLEAR]</button>
+                </div>
+                <div id="clipboard-history-list" class="max-h-32 overflow-y-auto no-scrollbar flex flex-col gap-1.5"></div>
+            </div>
+
             <!-- Export Dropdown -->
-            <div class="relative mt-auto pt-2" id="export-dropdown-container">
+            <div class="relative pt-2" id="export-dropdown-container">
                 <button onclick="toggleExportMenu()" aria-haspopup="true" aria-expanded="false" aria-label="Export conversation options" class="text-xs text-blue-400 underline text-left flex items-center gap-1 uppercase tracking-tighter">
                     EXPORT_CONVERSATION
                     <svg class="w-3 h-3 transition-transform duration-200" id="export-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -946,13 +974,15 @@
                     <span class="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">EDITING_FILE:</span>
                     <input type="text" id="editor-filename" class="bg-gray-900 border border-gray-700 px-2 py-1 rounded text-xs text-white focus:outline-none focus:border-blue-500 flex-1 font-mono" placeholder="filename.txt">
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
+                    <button id="editor-view-toggle" onclick="window.toggleEditorView()" class="hidden px-3 py-1 text-[10px] font-bold text-blue-400 border border-blue-400/30 hover:bg-blue-400/10 rounded uppercase transition-colors">TREE_VIEW</button>
                     <button onclick="window.closeTextEditor()" class="px-3 py-1 text-[10px] font-bold text-gray-500 hover:text-white uppercase transition-colors">CANCEL</button>
-                    <button onclick="window.saveEditedText()" class="px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase transition-colors">SAVE_CHANGES</button>
+                    <button id="editor-save-btn" onclick="window.saveEditedText()" class="px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase transition-colors">SAVE_CHANGES</button>
                 </div>
             </div>
-            <div class="flex-1 p-2 bg-[#0d1117]">
+            <div class="flex-1 p-2 bg-[#0d1117] relative">
                 <textarea id="editor-content" class="w-full h-full bg-transparent text-gray-300 font-mono text-sm p-4 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500/20 rounded chat-scroll" placeholder="ENTER_CONTENT_HERE..."></textarea>
+                <div id="editor-tree-view" class="hidden absolute inset-0 bg-[#0d1117] p-6 overflow-auto chat-scroll"></div>
             </div>
         </div>
     </div>
@@ -1160,6 +1190,7 @@
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
         let allUsers = []; 
+        let clipboardHistory = JSON.parse(localStorage.getItem('rawcore_clipboard_history') || '[]');
 
         // --- GLOBAL UI FUNCTIONS ---
         window.toggleArchivedView = () => {
@@ -1498,6 +1529,67 @@
             if (el) el.classList.add('hidden');
         };
 
+        window.addToClipboardHistory = (text, label = "SNIPPET") => {
+            if (!text || typeof text !== 'string') return;
+            const cleanText = text.trim();
+            if (!cleanText) return;
+
+            // Remove if already exists (move to top)
+            clipboardHistory = clipboardHistory.filter(item => item.text !== cleanText);
+            
+            clipboardHistory.unshift({
+                text: cleanText,
+                label: label.substring(0, 20).toUpperCase(),
+                timestamp: Date.now()
+            });
+
+            // Keep last 10 items
+            if (clipboardHistory.length > 10) clipboardHistory.pop();
+            
+            localStorage.setItem('rawcore_clipboard_history', JSON.stringify(clipboardHistory));
+            window.renderClipboardHistory();
+        };
+
+        window.renderClipboardHistory = () => {
+            const container = document.getElementById('clipboard-history-container');
+            const list = document.getElementById('clipboard-history-list');
+            if (!container || !list) return;
+
+            if (clipboardHistory.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            list.innerHTML = clipboardHistory.map((item, idx) => `
+                <div class="group/clip flex items-center gap-2 p-1.5 bg-gray-900/50 border border-gray-800 rounded hover:border-blue-500/50 transition-colors cursor-pointer" 
+                     onclick="window.reCopySnippet(${idx})">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-[7px] text-blue-500/70 font-bold truncate tracking-tighter mb-0.5">${item.label}</div>
+                        <div class="text-[9px] text-gray-400 truncate font-mono">${item.text.replace(/\n/g, ' ')}</div>
+                    </div>
+                    <svg class="w-3 h-3 text-gray-600 group-hover/clip:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                </div>
+            `).join('');
+        };
+
+        window.reCopySnippet = (index) => {
+            const item = clipboardHistory[index];
+            if (item) {
+                navigator.clipboard.writeText(item.text);
+                window.showToast("RE_COPIED_TO_CLIPBOARD", "success");
+                // Refresh to top
+                window.addToClipboardHistory(item.text, item.label);
+            }
+        };
+
+        window.clearClipboardHistory = () => {
+            clipboardHistory = [];
+            localStorage.removeItem('rawcore_clipboard_history');
+            window.renderClipboardHistory();
+            window.showToast("CLIPBOARD_LOG_CLEARED", "info");
+        };
+
         window.showToast = (msg, type = 'info') => {
             const container = document.getElementById('toast-container') || (() => {
                 const div = document.createElement('div');
@@ -1522,8 +1614,11 @@
         };
 
         window.copyToClipboard = (id) => {
-            const text = document.getElementById(id).innerText;
+            const el = document.getElementById(id);
+            const text = el.innerText;
+            const lang = el.className.match(/language-(\w+)/)?.[1] || "CODE";
             navigator.clipboard.writeText(text);
+            window.addToClipboardHistory(text, `CODE_${lang.toUpperCase()}`);
             window.showToast("CODE_COPIED", "success");
         };
 
@@ -2041,6 +2136,7 @@
         };
 
         onAuthStateChanged(auth, async (user) => {
+            window.renderClipboardHistory();
             const splash = document.getElementById('splash-screen');
             const authScreen = document.getElementById('auth-screen');
             const status = document.getElementById('splash-status');
@@ -2526,6 +2622,44 @@
             });
         }
 
+        function parseCSVToMarkdown(csvText) {
+            try {
+                const lines = csvText.trim().split(/\r?\n/);
+                if (lines.length === 0) return "";
+                const rows = lines.map(line => {
+                    const columns = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') inQuotes = !inQuotes;
+                        else if (char === ',' && !inQuotes) {
+                            columns.push(current.trim());
+                            current = '';
+                        } else current += char;
+                    }
+                    columns.push(current.trim());
+                    return columns;
+                });
+                
+                const headers = rows[0];
+                const body = rows.slice(1).filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
+                
+                if (headers.length < 2 && body.length === 0) return csvText;
+
+                let md = `\n\n### FILE_VIEW: ${headers.length}_COLUMNS // ${body.length}_ROWS\n\n`;
+                md += '| ' + headers.join(' | ') + ' |\n';
+                md += '| ' + headers.map(() => '---').join(' | ') + ' |\n';
+                body.forEach(row => {
+                    const paddedRow = [...row, ...Array(Math.max(0, headers.length - row.length)).fill('')];
+                    md += '| ' + paddedRow.slice(0, headers.length).join(' | ') + ' |\n';
+                });
+                return md + '\n';
+            } catch (e) {
+                return csvText;
+            }
+        }
+
         async function extractFileContent(file) {
             if (file.type.startsWith('image/')) return null;
 
@@ -2660,13 +2794,23 @@
             }
 
             const userTimestamp = Date.now();
-            const userDisplayContent = text + (attachmentData.length > 0 ? `\n\n[ATTACHMENTS: ${attachmentData.map(f => f.name).join(', ')}]` : '');
-            appendMessage('user', userDisplayContent, userTimestamp);
-
+            
             const processedAttachments = await Promise.all(attachmentData.map(async f => {
                 const content = await extractFileContent(f);
                 return { file: f, content: content };
             }));
+
+            let userDisplayContent = text;
+            if (attachmentData.length > 0) {
+                userDisplayContent += `\n\n[ATTACHMENTS: ${attachmentData.map(f => f.name).join(', ')}]`;
+                processedAttachments.forEach(att => {
+                    if (att.file.name.toLowerCase().endsWith('.csv') && att.content) {
+                        userDisplayContent += parseCSVToMarkdown(att.content);
+                    }
+                });
+            }
+
+            appendMessage('user', userDisplayContent, userTimestamp);
             
             inputEl.value = '';
             attachments = [];
@@ -3161,6 +3305,7 @@ QUANTUM_PHYSICS_QUARKS`;
             copyBtn.onclick = () => {
                 const currentText = div.getAttribute('data-raw-content') || content;
                 navigator.clipboard.writeText(currentText);
+                window.addToClipboardHistory(currentText, `${role.toUpperCase()}_MESSAGE`);
                 window.showToast("RAW_CONTENT_COPIED", "success");
             };
             copyBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg><span>COPY_RAW</span></div>`;
@@ -3525,8 +3670,34 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             const ro = new ResizeObserver(() => updateMinimap());
             if (win) ro.observe(win);
 
-            // Periodically refresh relative timestamps
-            setInterval(() => {
+        // Interactive Table Sorting Logic
+        document.addEventListener('click', (e) => {
+            const th = e.target.closest('.markdown-body th');
+            if (!th) return;
+            const table = th.closest('table');
+            const tbody = table.querySelector('tbody') || table;
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.querySelector('td'));
+            const index = Array.from(th.parentNode.children).indexOf(th);
+            const ascending = th.dataset.order !== 'asc';
+            
+            rows.sort((a, b) => {
+                const aCol = a.children[index].innerText.trim();
+                const bCol = b.children[index].innerText.trim();
+                const aNum = parseFloat(aCol.replace(/[^0-9.-]+/g, ""));
+                const bNum = parseFloat(bCol.replace(/[^0-9.-]+/g, ""));
+                
+                if (!isNaN(aNum) && !isNaN(bNum)) return ascending ? aNum - bNum : bNum - aNum;
+                return ascending ? aCol.localeCompare(bCol) : bCol.localeCompare(aCol);
+            });
+            
+            th.dataset.order = ascending ? 'asc' : 'desc';
+            Array.from(th.parentNode.children).forEach(h => { if(h !== th) delete h.dataset.order; });
+            rows.forEach(row => tbody.appendChild(row));
+            window.showToast(`SORTED_BY: ${th.innerText.split(' ')[0]} (${ascending ? 'ASC' : 'DESC'})`, 'info');
+        });
+
+        // Periodically refresh relative timestamps
+        setInterval(() => {
                 document.querySelectorAll('.relative-time').forEach(el => {
                     const msgDiv = el.closest('[data-timestamp]');
                     if (msgDiv) {
@@ -3686,6 +3857,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
             if (type === 'clipboard') {
                 navigator.clipboard.writeText(messages);
+                window.addToClipboardHistory(messages, "FULL_CHAT_EXPORT");
                 window.showToast("FULL_CHAT_COPIED", "success");
                 return;
             }
@@ -4330,15 +4502,44 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             
             attachments.forEach((f, index) => {
                 const container = document.createElement('div');
-                container.className = "relative group flex items-center shrink-0";
+                container.draggable = true;
+                container.dataset.index = index;
+                container.className = "relative group flex items-center shrink-0 cursor-grab active:cursor-grabbing transition-all duration-200";
                 
+                // Drag and Drop Handlers
+                container.ondragstart = (e) => {
+                    e.dataTransfer.setData('text/plain', index);
+                    container.classList.add('opacity-40', 'scale-90', 'rotate-2');
+                };
+                container.ondragend = () => {
+                    container.classList.remove('opacity-40', 'scale-90', 'rotate-2');
+                    document.querySelectorAll('.attachment-drop-target').forEach(el => el.classList.remove('border-l-4', 'border-blue-500', 'pl-2'));
+                };
+                container.ondragover = (e) => {
+                    e.preventDefault();
+                    container.classList.add('border-l-4', 'border-blue-500', 'pl-2', 'attachment-drop-target');
+                };
+                container.ondragleave = () => {
+                    container.classList.remove('border-l-4', 'border-blue-500', 'pl-2', 'attachment-drop-target');
+                };
+                container.ondrop = (e) => {
+                    e.preventDefault();
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    const toIndex = index;
+                    if (fromIndex !== toIndex && !isNaN(fromIndex)) {
+                        const item = attachments.splice(fromIndex, 1)[0];
+                        attachments.splice(toIndex, 0, item);
+                        renderAttachmentPreviews();
+                    }
+                };
+
                 if (f.type.startsWith('image/')) {
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         container.innerHTML = `
-                            <div class="relative w-14 h-14 sm:w-16 sm:h-16 bg-gray-900 rounded border border-gray-700 overflow-hidden shadow-lg">
+                            <div class="relative w-14 h-14 sm:w-16 sm:h-16 bg-gray-900 rounded border border-gray-700 overflow-hidden shadow-lg pointer-events-none">
                                 <img src="${e.target.result}" class="w-full h-full object-cover" alt="Attachment preview">
-                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center">
+                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center justify-center pointer-events-auto">
                                     <button type="button" aria-label="Remove image attachment ${f.name}" class="bg-red-600 text-white rounded-full p-1 remove-btn hover:scale-110 transition-transform focus:ring-2 focus:ring-white outline-none">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                     </button>
@@ -4355,12 +4556,12 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     reader.readAsDataURL(f);
                 } else {
                     const isEditable = f.type.startsWith('text/') || f.name.endsWith('.txt') || f.name.endsWith('.md') || f.name.endsWith('.json') || f.name.includes('pasted_content_');
-                    container.className = `text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors focus-within:ring-1 focus-within:ring-blue-500 ${isEditable ? 'cursor-pointer' : ''}`;
-                    container.title = isEditable ? "CLICK_TO_EDIT" : f.name;
+                    container.className += ` text-[10px] bg-gray-800 border border-gray-700 p-1 px-2 rounded flex items-center gap-2 h-8 hover:bg-gray-700 transition-colors focus-within:ring-1 focus-within:ring-blue-500 ${isEditable ? 'cursor-pointer' : ''}`;
+                    container.title = isEditable ? "CLICK_TO_EDIT // DRAG_TO_REORDER" : f.name + " (DRAG_TO_REORDER)";
                     container.innerHTML = `
-                        <span class="truncate max-w-[120px] text-gray-300 font-mono">${f.name}</span>
-                        ${isEditable ? '<span class="text-blue-500/50 text-[8px] font-bold">EDIT</span>' : ''}
-                        <button type="button" aria-label="Remove file attachment ${f.name}" class="text-red-500 hover:text-red-400 focus:outline-none focus:ring-1 focus:ring-red-500 rounded px-1 remove-btn font-bold">×</button>
+                        <span class="truncate max-w-[120px] text-gray-300 font-mono pointer-events-none">${f.name}</span>
+                        ${isEditable ? '<span class="text-blue-500/50 text-[8px] font-bold pointer-events-none">EDIT</span>' : ''}
+                        <button type="button" aria-label="Remove file attachment ${f.name}" class="text-red-500 hover:text-red-400 focus:outline-none focus:ring-1 focus:ring-red-500 rounded px-1 remove-btn font-bold relative z-10">×</button>
                     `;
                     
                     if (isEditable) {
@@ -4381,8 +4582,80 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             });
         };
 
-        window.handleFiles = (files) => {
-            Array.from(files).forEach(f => attachments.push(f));
+        /**
+         * IMAGE_PRE_PROCESSOR:
+         * Resizes and compresses images client-side to save bandwidth and improve LLM performance.
+         * Skips GIFs and SVGs to preserve animations/vectors.
+         */
+        async function compressImage(file, maxWidth = 1280, maxHeight = 1280, quality = 0.75) {
+            return new Promise((resolve) => {
+                if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+                    resolve(file);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let width = img.width;
+                        let height = img.height;
+
+                        // Only process if it exceeds dimensions or is a large raw file
+                        if (width <= maxWidth && height <= maxHeight && file.size < 512000) {
+                            resolve(file);
+                            return;
+                        }
+
+                        if (width > maxWidth || height > maxHeight) {
+                            if (width > height) {
+                                height *= maxWidth / width;
+                                width = maxWidth;
+                            } else {
+                                width *= maxHeight / height;
+                                height = maxHeight;
+                            }
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        canvas.toBlob((blob) => {
+                            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                                type: 'image/jpeg',
+                                lastModified: Date.now(),
+                            });
+                            resolve(compressedFile);
+                        }, 'image/jpeg', quality);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => resolve(file);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        window.handleFiles = async (files) => {
+            const filesArray = Array.from(files);
+            const processingImages = filesArray.some(f => f.type.startsWith('image/'));
+            
+            if (processingImages) window.showLoading("OPTIMIZING_ATTACHMENTS...");
+            
+            for (const f of filesArray) {
+                if (f.type.startsWith('image/')) {
+                    const processed = await compressImage(f);
+                    attachments.push(processed);
+                } else {
+                    attachments.push(f);
+                }
+            }
+            
+            if (processingImages) window.hideLoading();
             renderAttachmentPreviews();
         };
 
@@ -4396,8 +4669,27 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 window.hideLoading();
                 editingFileIndex = index;
                 const modal = document.getElementById('text-editor-modal');
-                document.getElementById('editor-filename').value = file.name;
-                document.getElementById('editor-content').value = e.target.result;
+                const content = e.target.result;
+                const filename = file.name;
+                
+                document.getElementById('editor-filename').value = filename;
+                document.getElementById('editor-content').value = content;
+                
+                // Show/Hide Tree View Toggle
+                const toggleBtn = document.getElementById('editor-view-toggle');
+                const treeView = document.getElementById('editor-tree-view');
+                const editorArea = document.getElementById('editor-content');
+                
+                treeView.classList.add('hidden');
+                editorArea.classList.remove('hidden');
+                toggleBtn.innerText = "TREE_VIEW";
+                
+                if (filename.toLowerCase().endsWith('.json')) {
+                    toggleBtn.classList.remove('hidden');
+                } else {
+                    toggleBtn.classList.add('hidden');
+                }
+
                 modal.classList.remove('hidden');
                 document.getElementById('editor-content').focus();
             };
@@ -4406,6 +4698,106 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 window.showToast("FAILED_TO_READ_FILE", "error");
             };
             reader.readAsText(file);
+        };
+
+        window.toggleEditorView = () => {
+            const btn = document.getElementById('editor-view-toggle');
+            const editorArea = document.getElementById('editor-content');
+            const treeView = document.getElementById('editor-tree-view');
+            const saveBtn = document.getElementById('editor-save-btn');
+            const isShowingTree = !treeView.classList.contains('hidden');
+
+            if (isShowingTree) {
+                treeView.classList.add('hidden');
+                editorArea.classList.remove('hidden');
+                btn.innerText = "TREE_VIEW";
+                saveBtn.disabled = false;
+                saveBtn.style.opacity = '1';
+            } else {
+                const content = editorArea.value;
+                try {
+                    const json = JSON.parse(content);
+                    window.renderJsonTree(json, treeView);
+                    treeView.classList.remove('hidden');
+                    editorArea.classList.add('hidden');
+                    btn.innerText = "RAW_TEXT";
+                    saveBtn.disabled = true;
+                    saveBtn.style.opacity = '0.5';
+                } catch (e) {
+                    window.showToast("INVALID_JSON_FOR_TREE_VIEW", "error");
+                }
+            }
+        };
+
+        window.renderJsonTree = (data, container) => {
+            const createItem = (key, value, isLast) => {
+                const item = document.createElement('div');
+                item.className = 'json-tree-item';
+                const type = typeof value;
+                const isObject = value !== null && type === 'object';
+                const isEmpty = isObject && Object.keys(value).length === 0;
+                const line = document.createElement('div');
+                line.className = 'flex items-baseline';
+
+                if (isObject && !isEmpty) {
+                    const toggle = document.createElement('span');
+                    toggle.className = 'json-tree-toggle';
+                    item.classList.add('json-tree-expanded');
+                    toggle.onclick = (e) => { e.stopPropagation(); item.classList.toggle('json-tree-expanded'); item.classList.toggle('json-tree-collapsed'); };
+                    line.appendChild(toggle);
+                } else {
+                    const icon = document.createElement('span');
+                    icon.className = 'json-tree-empty-icon';
+                    line.appendChild(icon);
+                }
+
+                if (key !== null) {
+                    const keySpan = document.createElement('span');
+                    keySpan.className = 'json-tree-key';
+                    keySpan.innerText = `"${key}": `;
+                    line.appendChild(keySpan);
+                }
+
+                if (isObject) {
+                    const bracketOpen = document.createElement('span');
+                    bracketOpen.innerText = Array.isArray(value) ? '[' : '{';
+                    line.appendChild(bracketOpen);
+                    if (isEmpty) {
+                        const bracketClose = document.createElement('span');
+                        bracketClose.innerText = (Array.isArray(value) ? ']' : '}') + (isLast ? '' : ',');
+                        line.appendChild(bracketClose);
+                    } else {
+                        const children = document.createElement('div');
+                        children.className = 'json-tree-children';
+                        const keys = Object.keys(value);
+                        keys.forEach((k, i) => {
+                            children.appendChild(createItem(k, value[k], i === keys.length - 1));
+                        });
+                        item.appendChild(line);
+                        item.appendChild(children);
+                        const closingLine = document.createElement('div');
+                        closingLine.className = 'ml-[-4px] text-gray-500';
+                        closingLine.innerText = (Array.isArray(value) ? ']' : '}') + (isLast ? '' : ',');
+                        item.appendChild(closingLine);
+                        return item;
+                    }
+                } else {
+                    const valSpan = document.createElement('span');
+                    if (type === 'string') { valSpan.className = 'json-tree-value-string'; valSpan.innerText = `"${value}"`; }
+                    else if (type === 'number') { valSpan.className = 'json-tree-value-number'; valSpan.innerText = value; }
+                    else if (type === 'boolean') { valSpan.className = 'json-tree-value-boolean'; valSpan.innerText = value; }
+                    else if (value === null) { valSpan.className = 'json-tree-value-null'; valSpan.innerText = 'null'; }
+                    valSpan.innerText += (isLast ? '' : ',');
+                    line.appendChild(valSpan);
+                }
+                item.appendChild(line);
+                return item;
+            };
+            container.innerHTML = '';
+            const wrapper = document.createElement('div');
+            wrapper.className = 'json-tree';
+            wrapper.appendChild(createItem(null, data, true));
+            container.appendChild(wrapper);
         };
 
         window.saveEditedText = () => {
@@ -4424,6 +4816,9 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
         window.closeTextEditor = () => {
             document.getElementById('text-editor-modal').classList.add('hidden');
+            const saveBtn = document.getElementById('editor-save-btn');
+            saveBtn.disabled = false;
+            saveBtn.style.opacity = '1';
             editingFileIndex = -1;
         };
 
