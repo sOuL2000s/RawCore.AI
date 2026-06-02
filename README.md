@@ -48,6 +48,11 @@ service cloud.firestore {
       // Allow a user to update their own profile (e.g., preferences)
       allow update: if request.auth != null && request.auth.uid == userId;
 
+      // System Prompts Library subcollection
+      match /prompts/{promptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // Admin specific permissions for users collection
       // Allow admins to list (read all) users
       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;

@@ -496,6 +496,7 @@
                     </div>
                 </div>
                 <button onclick="createNewChat(); toggleSidebar();" aria-label="Start a new chat" class="w-full border border-gray-600 p-2 hover:bg-gray-800 rounded text-sm text-blue-400 font-bold">+ NEW_CHAT</button>
+                <button onclick="window.createNewFolder()" aria-label="Create a new folder" class="w-full border border-gray-700 p-1 hover:bg-gray-800 rounded text-[10px] text-gray-500 font-bold uppercase tracking-tighter">+ NEW_FOLDER</button>
                 <div class="flex gap-1">
                     <button id="manage-chats-btn" onclick="toggleSelectionMode()" aria-label="Toggle batch management mode" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
                     <button onclick="deleteAllChats()" aria-label="Clear all chat history" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
@@ -503,6 +504,15 @@
                 <div id="batch-actions" class="hidden flex gap-1">
                     <button onclick="deleteSelectedChats()" aria-label="Delete selected conversations" class="flex-1 bg-red-900/40 border border-red-500 p-1 hover:bg-red-900/60 rounded text-[9px] text-red-200 transition-colors uppercase font-mono tracking-tighter">Delete Selected (<span id="selected-count">0</span>)</button>
                     <button onclick="toggleSelectionMode()" aria-label="Cancel management mode" class="border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors">CANCEL</button>
+                </div>
+                <button id="toggle-archived-view" onclick="window.toggleArchivedView()" class="w-full border border-gray-800 p-1.5 hover:bg-gray-800 rounded text-[9px] text-gray-500 transition-colors uppercase font-mono tracking-tighter border-dashed">View: Active_Conversations</button>
+                
+                <div id="active-chat-tags-ui" class="hidden border border-gray-800 p-2 rounded bg-black/40 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-[8px] font-bold text-gray-500 uppercase tracking-widest">CONVERSATION_TAGS</span>
+                        <button onclick="window.addTagPrompt()" class="text-blue-400 hover:text-blue-300 text-[10px] font-bold">+</button>
+                    </div>
+                    <div id="active-tags-list" class="flex flex-wrap gap-1"></div>
                 </div>
             </div>
             <div id="chat-history" class="flex-1 overflow-y-auto space-y-1 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
@@ -1091,70 +1101,27 @@
                 switch(e.key.toLowerCase()) {
                     case 'n': 
                         e.preventDefault(); 
-                        createNewChat(); 
+                        window.createNewChat(); 
                         if(window.innerWidth < 768) document.getElementById('sidebar').classList.remove('open');
                         break;
-                    case 's': e.preventDefault(); toggleSidebar(); break;
-                    case 'h': e.preventDefault(); togglePanel('help-panel'); break;
+                    case 's': e.preventDefault(); window.toggleSidebar(); break;
+                    case 'h': e.preventDefault(); window.togglePanel('help-panel'); break;
                     case 'a': 
                         const adminBtn = document.getElementById('admin-btn');
                         if (adminBtn && !adminBtn.classList.contains('hidden')) {
-                            e.preventDefault(); togglePanel('admin-panel');
+                            e.preventDefault(); window.togglePanel('admin-panel');
                         }
                         break;
-                    case 'v': e.preventDefault(); startSpeech(); break;
-                    case 'e': e.preventDefault(); toggleExportMenu(); break;
-                    case 'm': e.preventDefault(); toggleSelectionMode(); break;
-                    case 'c': e.preventDefault(); deleteAllChats(); break;
-                    case 'p': e.preventDefault(); togglePanel('settings-panel'); break;
-                    case 'f': e.preventDefault(); toggleFullscreen(); break;
-                    case 'j': e.preventDefault(); toggleJsonMode(); break;
+                    case 'v': e.preventDefault(); window.startSpeech(); break;
+                    case 'e': e.preventDefault(); window.toggleExportMenu(); break;
+                    case 'm': e.preventDefault(); window.toggleSelectionMode(); break;
+                    case 'c': e.preventDefault(); window.deleteAllChats(); break;
+                    case 'p': e.preventDefault(); window.togglePanel('settings-panel'); break;
+                    case 'f': e.preventDefault(); window.toggleFullscreen(); break;
+                    case 'j': e.preventDefault(); window.toggleJsonMode(); break;
                 }
             }
         });
-
-        window.toggleFullscreen = () => {
-            document.body.classList.toggle('fullscreen-mode');
-            const isFull = document.body.classList.contains('fullscreen-mode');
-            const btn = document.getElementById('fullscreen-btn');
-            if (btn) {
-                btn.innerText = isFull ? 'EXIT_FOCUS' : 'FOCUS';
-                btn.classList.toggle('text-yellow-500', isFull);
-                btn.classList.toggle('border-yellow-500/50', isFull);
-            }
-            window.showToast(isFull ? "FOCUS_MODE_ENABLED" : "FOCUS_MODE_DISABLED", "info");
-            // Update UI layout
-            window.updateMinimap();
-        };
-
-        window.toggleModelMenu = () => {
-            const menu = document.getElementById('model-extra-menu');
-            const container = document.getElementById('model-menu-container');
-            const isHidden = menu.classList.contains('hidden');
-            
-            if (!isHidden) {
-                menu.classList.add('hidden');
-                return;
-            }
-
-            menu.classList.remove('hidden');
-
-            const closeMenu = (e) => {
-                if (e && e.target && container.contains(e.target)) return;
-                menu.classList.add('hidden');
-                document.removeEventListener('click', closeMenu);
-                document.removeEventListener('keydown', handleKey);
-            };
-
-            const handleKey = (e) => {
-                if (e.key === 'Escape') closeMenu();
-            };
-
-            setTimeout(() => {
-                document.addEventListener('click', closeMenu);
-                document.addEventListener('keydown', handleKey);
-            }, 10);
-        };
 
         // State
         let currentUser = null;
@@ -1180,6 +1147,7 @@
         let isJsonMode = false;
         let currentAbortController = null;
         let isSelectionMode = false;
+        let showArchived = false;
         let systemPrompts = [];
 
         const MAX_RETRIES = 2;
@@ -1193,6 +1161,117 @@
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
         let allUsers = []; 
+
+        // --- GLOBAL UI FUNCTIONS ---
+        window.toggleArchivedView = () => {
+            showArchived = !showArchived;
+            const btn = document.getElementById('toggle-archived-view');
+            if (btn) {
+                btn.innerText = showArchived ? 'View: Archived_Conversations' : 'View: Active_Conversations';
+                btn.classList.toggle('text-blue-400', showArchived);
+                btn.classList.toggle('border-blue-500/50', showArchived);
+            }
+            if (lastChatSnapshot) renderChatHistory(lastChatSnapshot);
+        };
+
+        window.togglePinChat = async (id, currentPinned) => {
+            try {
+                await updateDoc(doc(db, "chats", id), { isPinned: !currentPinned });
+                window.showToast(!currentPinned ? "CHAT_PINNED" : "CHAT_UNPINNED", "success");
+            } catch (e) {
+                window.showToast("PIN_FAILED", "error");
+            }
+        };
+
+        window.toggleArchiveChat = async (id, currentArchived) => {
+            try {
+                await updateDoc(doc(db, "chats", id), { isArchived: !currentArchived });
+                window.showToast(!currentArchived ? "CHAT_ARCHIVED" : "CHAT_RESTORED", "success");
+                if (!currentArchived && currentChatId === id) window.createNewChat();
+            } catch (e) {
+                window.showToast("ARCHIVE_FAILED", "error");
+            }
+        };
+
+        window.toggleFullscreen = () => {
+            document.body.classList.toggle('fullscreen-mode');
+            const isFull = document.body.classList.contains('fullscreen-mode');
+            const btn = document.getElementById('fullscreen-btn');
+            if (btn) {
+                btn.innerText = isFull ? 'EXIT_FOCUS' : 'FOCUS';
+                btn.classList.toggle('text-yellow-500', isFull);
+                btn.classList.toggle('border-yellow-500/50', isFull);
+            }
+            window.showToast(isFull ? "FOCUS_MODE_ENABLED" : "FOCUS_MODE_DISABLED", "info");
+            window.updateMinimap();
+        };
+
+        window.toggleModelMenu = () => {
+            const menu = document.getElementById('model-extra-menu');
+            const container = document.getElementById('model-menu-container');
+            if (!menu || !container) return;
+            const isHidden = menu.classList.contains('hidden');
+            if (!isHidden) {
+                menu.classList.add('hidden');
+                return;
+            }
+            menu.classList.remove('hidden');
+            const closeMenu = (e) => {
+                if (e && e.target && container.contains(e.target)) return;
+                menu.classList.add('hidden');
+                document.removeEventListener('click', closeMenu);
+                document.removeEventListener('keydown', handleKey);
+            };
+            const handleKey = (e) => { if (e.key === 'Escape') closeMenu(); };
+            setTimeout(() => {
+                document.addEventListener('click', closeMenu);
+                document.addEventListener('keydown', handleKey);
+            }, 10);
+        };
+
+        window.logout = () => signOut(auth);
+
+        window.createNewChat = () => {
+            currentChatId = null;
+            userHasScrolledUp = false;
+            document.getElementById('chat-window').innerHTML = '';
+            window.closeTOC();
+            updateMinimap();
+            const tagsUI = document.getElementById('active-chat-tags-ui');
+            if (tagsUI) tagsUI.classList.add('hidden');
+            document.querySelectorAll('#chat-history > div').forEach(div => {
+                div.classList.remove('bg-blue-600/10', 'border-blue-500/40');
+                div.classList.add('hover:bg-gray-800', 'border-transparent');
+            });
+        };
+
+
+
+        window.togglePanel = (id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isClosing = !el.classList.contains('hidden');
+            if (isClosing) {
+                el.classList.add('hidden');
+                if (panelPrevFocus) {
+                    panelPrevFocus.focus();
+                    panelPrevFocus = null;
+                }
+            } else {
+                panelPrevFocus = document.activeElement;
+                el.classList.remove('hidden');
+                const first = el.querySelector('button, input, textarea, [tabindex="0"]');
+                if (first) setTimeout(() => first.focus(), 50);
+                const handleEsc = (e) => {
+                    if (e.key === 'Escape') {
+                        el.classList.add('hidden');
+                        if (panelPrevFocus) panelPrevFocus.focus();
+                        document.removeEventListener('keydown', handleEsc);
+                    }
+                };
+                document.addEventListener('keydown', handleEsc);
+            }
+        };
         
         async function updateKeyStatus(provider, key, status, error = null) {
             if (!key || !currentUser) return;
@@ -1475,10 +1554,7 @@
             }, 200);
         };
 
-        window.toggleSidebar = () => {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('sidebar-overlay').classList.toggle('open');
-        };
+
 
         window.closeTOC = () => {
             document.getElementById('floating-toc').style.display = 'none';
@@ -1960,8 +2036,6 @@
             });
         };
 
-        window.logout = () => signOut(auth);
-
         window.togglePassword = () => {
             const el = document.getElementById('auth-password');
             el.type = el.type === 'password' ? 'text' : 'password';
@@ -2240,12 +2314,20 @@
 
         window.loadSystemPrompts = async () => {
             if (!currentUser) return;
-            const q = query(collection(db, `users/${currentUser.uid}/prompts`), orderBy("createdAt", "desc"));
-            onSnapshot(q, (snapshot) => {
-                systemPrompts = [];
-                snapshot.forEach(doc => systemPrompts.push({ id: doc.id, ...doc.data() }));
-                renderPromptSelector();
-            });
+            try {
+                const q = query(collection(db, `users/${currentUser.uid}/prompts`), orderBy("createdAt", "desc"));
+                onSnapshot(q, (snapshot) => {
+                    systemPrompts = [];
+                    snapshot.forEach(doc => systemPrompts.push({ id: doc.id, ...doc.data() }));
+                    renderPromptSelector();
+                }, (error) => {
+                    console.warn("System_Prompts_Access_Denied (Check Firestore Rules):", error);
+                    systemPrompts = [];
+                    renderPromptSelector();
+                });
+            } catch (e) {
+                console.error("System prompts load error:", e);
+            }
         };
 
         function renderPromptSelector() {
@@ -3587,32 +3669,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
         // --- UTILS ---
         let panelPrevFocus = null;
-        window.togglePanel = (id) => {
-            const el = document.getElementById(id);
-            const isClosing = !el.classList.contains('hidden');
-            
-            if (isClosing) {
-                el.classList.add('hidden');
-                if (panelPrevFocus) {
-                    panelPrevFocus.focus();
-                    panelPrevFocus = null;
-                }
-            } else {
-                panelPrevFocus = document.activeElement;
-                el.classList.remove('hidden');
-                const first = el.querySelector('button, input, textarea, [tabindex="0"]');
-                if (first) setTimeout(() => first.focus(), 50);
-                
-                const handleEsc = (e) => {
-                    if (e.key === 'Escape') {
-                        el.classList.add('hidden');
-                        if (panelPrevFocus) panelPrevFocus.focus();
-                        document.removeEventListener('keydown', handleEsc);
-                    }
-                };
-                document.addEventListener('keydown', handleEsc);
-            }
-        };
         
         window.exportChat = (type) => {
             // Close menu
@@ -3903,18 +3959,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         }
         window.forkConversation = forkConversation;
 
-        window.createNewChat = () => {
-            currentChatId = null;
-            userHasScrolledUp = false;
-            document.getElementById('chat-window').innerHTML = '';
-            window.closeTOC();
-            updateMinimap();
-            // Clear visual active state in sidebar
-            document.querySelectorAll('#chat-history > div').forEach(div => {
-                div.classList.remove('bg-blue-600/10', 'border-blue-500/40');
-                div.classList.add('hover:bg-gray-800', 'border-transparent');
-            });
-        };
+
 
         window.toggleSelectionMode = () => {
             isSelectionMode = !isSelectionMode;
@@ -3946,19 +3991,39 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             if (!hist) return;
             hist.innerHTML = '';
             
+            // Convert snapshot to array for custom sorting (pinned chats first)
+            const chats = [];
+            snapshot.forEach(doc => chats.push({ id: doc.id, ...doc.data() }));
+            
+            chats.sort((a, b) => {
+                const aPinned = !!a.isPinned;
+                const bPinned = !!b.isPinned;
+                if (aPinned !== bPinned) return aPinned ? -1 : 1;
+                return (b.createdAt || 0) - (a.createdAt || 0);
+            });
+
             let matchCount = 0;
-            snapshot.forEach(chatDoc => {
-                const d = chatDoc.data();
-                const chatTitle = (d.title || "Untitled Chat").toLowerCase();
+            chats.forEach(d => {
+                const chatId = d.id;
                 
-                if (searchTerm && !chatTitle.includes(searchTerm)) return;
+                // ARCHIVE_FILTER
+                const isArchived = !!d.isArchived;
+                if (isArchived !== showArchived) return;
+
+                const chatTitle = (d.title || "Untitled Chat").toLowerCase();
+                const chatTags = (d.tags || []).map(t => t.toLowerCase());
+                
+                const matchesTitle = chatTitle.includes(searchTerm);
+                const matchesTags = chatTags.some(t => t.includes(searchTerm));
+                
+                if (searchTerm && !matchesTitle && !matchesTags) return;
                 matchCount++;
 
                 const container = document.createElement('div');
-                container.setAttribute('data-chat-id', chatDoc.id);
+                container.setAttribute('data-chat-id', chatId);
                 container.setAttribute('role', 'listitem');
-                const isBatchSelected = selectedChatIds.has(chatDoc.id);
-                const isActive = currentChatId === chatDoc.id;
+                const isBatchSelected = selectedChatIds.has(chatId);
+                const isActive = currentChatId === chatId;
                 
                 let bgClass = isActive && !isSelectionMode ? 'bg-blue-600/10' : 'hover:bg-gray-800';
                 let borderClass = isBatchSelected ? 'border-blue-500/50' : (isActive && !isSelectionMode ? 'border-blue-500/40' : 'border-transparent hover:border-gray-700');
@@ -3974,8 +4039,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     checkbox.setAttribute('aria-label', `Select chat: ${d.title || 'Untitled'}`);
                     checkbox.onclick = (e) => e.stopPropagation();
                     checkbox.onchange = (e) => {
-                        if (e.target.checked) selectedChatIds.add(chatDoc.id);
-                        else selectedChatIds.delete(chatDoc.id);
+                        if (e.target.checked) selectedChatIds.add(chatId);
+                        else selectedChatIds.delete(chatId);
                         updateSelectedCount();
                         container.classList.toggle('border-blue-500/50', e.target.checked);
                         container.classList.toggle('bg-gray-800', e.target.checked);
@@ -3985,10 +4050,17 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
                 const titleBtn = document.createElement('button');
                 titleBtn.className = "flex-1 text-left truncate mr-2 text-[11px] focus:outline-none";
-                titleBtn.innerText = d.title || "Untitled Chat";
+                titleBtn.innerHTML = `
+                    <div class="truncate">${d.isPinned ? '<span class="text-yellow-500 mr-1">★</span>' : ''}${d.title || "Untitled Chat"}</div>
+                    ${d.tags && d.tags.length > 0 ? `
+                        <div class="flex flex-wrap gap-1 mt-1">
+                            ${d.tags.map(tag => `<span class="bg-blue-900/30 text-blue-400 text-[7px] px-1 rounded uppercase border border-blue-500/20 font-bold tracking-tighter">${tag}</span>`).join('')}
+                        </div>
+                    ` : ''}
+                `;
                 if (!isSelectionMode) {
                     titleBtn.onclick = () => {
-                        loadSpecificChat(chatDoc.id);
+                        loadSpecificChat(chatId);
                         if(window.innerWidth < 768) window.toggleSidebar();
                     };
                 }
@@ -3996,18 +4068,32 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 const actions = document.createElement('div');
                 actions.className = `flex gap-2 transition-opacity ${isSelectionMode ? 'hidden' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`;
                 
+                const archiveBtn = document.createElement('button');
+                archiveBtn.innerHTML = d.isArchived ? "⟲" : "☖";
+                archiveBtn.className = "text-gray-500 hover:text-blue-400 text-xs";
+                archiveBtn.title = d.isArchived ? "Unarchive" : "Archive";
+                archiveBtn.onclick = (e) => { e.stopPropagation(); window.toggleArchiveChat(chatId, !!d.isArchived); };
+
+                const pinBtn = document.createElement('button');
+                pinBtn.innerHTML = d.isPinned ? "★" : "☆";
+                pinBtn.className = d.isPinned ? "text-yellow-500 hover:text-yellow-400 text-xs" : "text-gray-500 hover:text-yellow-500 text-xs";
+                pinBtn.title = d.isPinned ? "Unpin" : "Pin";
+                pinBtn.onclick = (e) => { e.stopPropagation(); window.togglePinChat(chatId, !!d.isPinned); };
+
                 const renBtn = document.createElement('button');
                 renBtn.innerHTML = "✎";
                 renBtn.className = "text-gray-500 hover:text-blue-400 text-xs";
                 renBtn.title = "Rename";
-                renBtn.onclick = (e) => { e.stopPropagation(); renameChat(chatDoc.id, d.title); };
+                renBtn.onclick = (e) => { e.stopPropagation(); renameChat(chatId, d.title); };
                 
                 const delBtn = document.createElement('button');
                 delBtn.innerHTML = "×";
                 delBtn.className = "text-gray-500 hover:text-red-400 text-base leading-none";
                 delBtn.title = "Delete";
-                delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chatDoc.id); };
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chatId); };
 
+                actions.appendChild(archiveBtn);
+                actions.appendChild(pinBtn);
                 actions.appendChild(renBtn);
                 actions.appendChild(delBtn);
                 container.appendChild(titleBtn);
@@ -4074,6 +4160,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             });
         };
 
+
+
         window.deleteAllChats = async () => {
             if (!currentUser) return;
             window.showCustomModal({
@@ -4100,10 +4188,73 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             });
         };
 
+        async function renderActiveChatTags(chatId) {
+            if (!chatId) return;
+            const chatDoc = await getDoc(doc(db, "chats", chatId));
+            if (!chatDoc.exists()) return;
+            const data = chatDoc.data();
+            const tags = data.tags || [];
+            const list = document.getElementById('active-tags-list');
+            if (!list) return;
+            
+            list.innerHTML = tags.map(tag => `
+                <span class="bg-blue-600/20 text-blue-400 text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 border border-blue-500/30 font-bold">
+                    ${tag.toUpperCase()}
+                    <button onclick="window.removeTag('${chatId}', '${tag}')" class="hover:text-red-500 font-bold transition-colors">×</button>
+                </span>
+            `).join('') || '<span class="text-[8px] text-gray-600 italic uppercase">NO_TAGS_APPLIED</span>';
+        }
+
+        window.addTagPrompt = () => {
+            if (!currentChatId) return;
+            window.showCustomModal({
+                title: 'ADD_LABEL',
+                message: 'ENTER_SEARCHABLE_TAG_FOR_THIS_CHAT',
+                inputPlaceholder: 'TAG_NAME',
+                confirmText: 'ADD',
+                onConfirm: async (tag) => {
+                    if (!tag || !tag.trim()) return;
+                    const cleanTag = tag.trim().replace(/\s+/g, '_').toUpperCase();
+                    try {
+                        const chatRef = doc(db, "chats", currentChatId);
+                        const chatDoc = await getDoc(chatRef);
+                        const currentTags = chatDoc.data().tags || [];
+                        if (!currentTags.includes(cleanTag)) {
+                            await updateDoc(chatRef, {
+                                tags: [...currentTags, cleanTag]
+                            });
+                            renderActiveChatTags(currentChatId);
+                            window.showToast("TAG_ADDED", "success");
+                        }
+                    } catch (e) {
+                        window.showToast("TAG_ADD_FAILED", "error");
+                    }
+                }
+            });
+        };
+
+        window.removeTag = async (chatId, tag) => {
+            try {
+                const chatRef = doc(db, "chats", chatId);
+                const chatDoc = await getDoc(chatRef);
+                const currentTags = chatDoc.data().tags || [];
+                const newTags = currentTags.filter(t => t !== tag);
+                await updateDoc(chatRef, { tags: newTags });
+                renderActiveChatTags(chatId);
+                window.showToast("TAG_REMOVED", "info");
+            } catch (e) {
+                window.showToast("TAG_REMOVE_FAILED", "error");
+            }
+        };
+
         async function loadSpecificChat(id) {
             currentChatId = id;
             userHasScrolledUp = false; // Reset scroll state for new chat
             window.closeTOC();
+            
+            const tagsUI = document.getElementById('active-chat-tags-ui');
+            if (tagsUI) tagsUI.classList.remove('hidden');
+            renderActiveChatTags(id);
             // Update visual active state in sidebar
             document.querySelectorAll('#chat-history > div').forEach(div => {
                 const isThis = div.getAttribute('data-chat-id') === id;
