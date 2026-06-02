@@ -52,10 +52,13 @@
     <!-- CSS: Tailwind for layout, Monospace fonts for 'Raw' look -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -208,6 +211,10 @@
         .wave-bar:nth-child(4) { animation-delay: 0.1s; }
         .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; }
         .code-copy-btn:hover { background: #444c56; color: #fff; }
+
+        /* Mermaid Styling */
+        .mermaid svg { max-width: 100% !important; height: auto !important; margin: 0 auto; }
+        .mermaid { color: var(--text-main); font-family: 'Fira Code', monospace !important; }
 
         .toast {
             position: fixed;
@@ -941,6 +948,10 @@
             const codeContent = typeof token === 'object' ? token.text : token;
             const language = typeof token === 'object' ? (token.lang || 'plaintext') : (lang || 'plaintext');
             
+            if (language === 'mermaid') {
+                return `<div class="mermaid flex justify-center bg-gray-900/30 p-4 rounded-lg my-4 overflow-x-auto border border-gray-800 shadow-inner">${codeContent}</div>`;
+            }
+
             let highlightedCode;
             try {
                 if (language && hljs.getLanguage(language)) {
@@ -963,6 +974,51 @@
             const text = typeof token === 'string' ? token : (token.text || "");
             return `<code class="bg-gray-800 px-1 rounded break-all whitespace-pre-wrap">${text}</code>`;
         };
+
+        // KaTeX integration for Marked
+        marked.use({
+            extensions: [
+                {
+                    name: 'blockMath',
+                    level: 'block',
+                    start(src) { return src.indexOf('$$'); },
+                    tokenizer(src) {
+                        const match = src.match(/^\$\$([\s\S]+?)\$\$/);
+                        if (match) {
+                            return { type: 'blockMath', raw: match[0], text: match[1].trim() };
+                        }
+                    },
+                    renderer(token) {
+                        try {
+                            return `<div class="katex-block my-4 overflow-x-auto w-full text-center">${katex.renderToString(token.text, { displayMode: true, throwOnError: false })}</div>`;
+                        } catch (e) { return `<p class="text-red-500">${token.raw}</p>`; }
+                    }
+                },
+                {
+                    name: 'inlineMath',
+                    level: 'inline',
+                    start(src) { return src.indexOf('$'); },
+                    tokenizer(src) {
+                        const match = src.match(/^\$([^$\n]+?)\$/);
+                        if (match) {
+                            return { type: 'inlineMath', raw: match[0], text: match[1].trim() };
+                        }
+                    },
+                    renderer(token) {
+                        try {
+                            return katex.renderToString(token.text, { displayMode: false, throwOnError: false });
+                        } catch (e) { return token.raw; }
+                    }
+                }
+            ]
+        });
+
+        mermaid.initialize({ 
+            startOnLoad: false, 
+            theme: 'dark',
+            securityLevel: 'loose',
+            fontFamily: 'Fira Code'
+        });
 
         marked.setOptions({ 
             renderer: renderer,
@@ -1013,6 +1069,21 @@
             const text = document.getElementById(id).innerText;
             navigator.clipboard.writeText(text);
             window.showToast("CODE_COPIED", "success");
+        };
+
+        let mermaidTimer = null;
+        window.renderMermaid = async () => {
+            const elements = document.querySelectorAll('.mermaid:not([data-processed="true"])');
+            if (elements.length === 0) return;
+
+            clearTimeout(mermaidTimer);
+            mermaidTimer = setTimeout(async () => {
+                try {
+                    await mermaid.run({ nodes: Array.from(elements) });
+                } catch (e) {
+                    // Silently fail during partial renders (streaming)
+                }
+            }, 200);
         };
 
         window.toggleSidebar = () => {
@@ -1790,6 +1861,7 @@
                         win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
                     }
                     updateMinimap();
+                    window.renderMermaid();
                 };
 
                 const response = await callAIWithFailover(text, processedAttachments, model, currentAbortController.signal, history, onUpdate);
@@ -2114,6 +2186,7 @@
             }
             
             updateMinimap();
+            window.renderMermaid();
             return { div, rawContent };
         }
 
