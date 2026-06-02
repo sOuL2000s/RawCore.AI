@@ -59,7 +59,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Source+Code+Pro:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
         :root {
@@ -69,6 +69,7 @@
             --text-main: #e6edf3;
             --accent: #3b82f6;
             --accent-hover: #2563eb;
+            --font-main: 'Fira Code', monospace;
         }
 
         body.theme-matrix {
@@ -107,8 +108,19 @@
             --accent-hover: #528bff;
         }
 
-        body { font-family: 'Fira Code', monospace; background-color: var(--bg-primary); color: var(--text-main); transition: background-color 0.3s, color 0.3s; }
+        body { font-family: var(--font-main); background-color: var(--bg-primary); color: var(--text-main); transition: background-color 0.3s, color 0.3s, font-family 0.2s; }
         #sidebar, #chat-window, .sidebar-mobile, main, #splash-screen { background-color: var(--bg-primary) !important; }
+        
+        /* Compact Mode Overrides */
+        body.compact #sidebar { padding: 0.5rem !important; gap: 0.5rem !important; }
+        body.compact #chat-history { gap: 0.25rem !important; }
+        body.compact #chat-history > div { padding: 0.35rem 0.5rem !important; }
+        body.compact #chat-window { padding: 0.5rem 1rem !important; gap: 0.5rem !important; }
+        body.compact [data-role] { padding: 0.5rem 0.75rem !important; }
+        body.compact .markdown-body p { margin-bottom: 0.5rem !important; }
+        body.compact .markdown-body pre { margin: 0.5rem 0 !important; padding: 0.5rem !important; }
+        body.compact #attachment-preview { margin-bottom: 0.25rem !important; }
+        body.compact .glass { padding: 0.25rem 0.5rem !important; }
         header, .border-b, .border-t, .border-r, .border-l, .glass, .scroll-btn, .markdown-body table th, .markdown-body table td, #chat-search, #text-model-select, #stt-model-select, .theme-btn { border-color: var(--border-ui) !important; }
         .glass, #export-menu, #admin-panel, #help-panel, #settings-panel, #text-editor-modal > div { background: var(--bg-secondary) !important; }
         .bg-gray-800 { background-color: var(--bg-secondary) !important; opacity: 0.9; }
@@ -199,7 +211,26 @@
         }
         .scroll-btn.visible { opacity: 1; pointer-events: auto; }
         .scroll-btn:hover { background: #30363d; color: #fff; border-color: #3b82f6; }
+        .scroll-btn.pulse { animation: scroll-pulse 1.5s infinite; border-color: var(--accent) !important; color: var(--accent) !important; box-shadow: 0 0 10px var(--accent); }
+        @keyframes scroll-pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
         .loader { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; }
+        .typing-indicator::after {
+            content: '...';
+            display: inline-block;
+            width: 1.5em;
+            text-align: left;
+            animation: typing 1.5s steps(4, end) infinite;
+        }
+        @keyframes typing {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @keyframes wave {
             0%, 100% { height: 4px; }
@@ -209,12 +240,53 @@
         .wave-bar:nth-child(2) { animation-delay: 0.2s; }
         .wave-bar:nth-child(3) { animation-delay: 0.4s; }
         .wave-bar:nth-child(4) { animation-delay: 0.1s; }
-        .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; }
+        .code-copy-btn { position: absolute; top: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; z-index: 10; }
         .code-copy-btn:hover { background: #444c56; color: #fff; }
+
+        .code-block-container.collapsed pre { max-height: 150px; overflow: hidden; mask-image: linear-gradient(to bottom, black 70%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%); }
+        .code-expand-btn { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, var(--bg-secondary) 40%, transparent); color: var(--accent); font-size: 10px; font-weight: bold; padding: 20px 0 5px 0; text-align: center; cursor: pointer; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; opacity: 0.9; display: none; }
+        .code-expand-btn:hover { opacity: 1; text-decoration: underline; }
+        .code-block-container.collapsed .code-expand-btn { display: block; }
+        .code-collapse-btn { display: none; position: absolute; bottom: 5px; right: 5px; font-size: 10px; background: #30363d; padding: 2px 6px; border-radius: 4px; color: #c9d1d9; cursor: pointer; }
+        .code-block-container:not(.collapsed) .code-collapse-btn { display: block; }
+
+        #floating-toc {
+            position: fixed;
+            right: 80px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 180px;
+            max-height: 50vh;
+            z-index: 45;
+            padding: 0.75rem;
+            display: none;
+            flex-direction: column;
+            border-left: 2px solid var(--accent);
+            border-radius: 4px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        @media (max-width: 1024px) {
+            #floating-toc { display: none !important; }
+        }
+        .toc-item {
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            opacity: 0.5;
+            transition: all 0.2s;
+            font-size: 9px;
+            text-transform: uppercase;
+            font-family: 'Fira Code', monospace;
+        }
+        .toc-item:hover { opacity: 1; color: var(--accent); padding-left: 2px; }
+        .toc-h1 { font-weight: bold; color: var(--accent); }
+        .toc-h2 { padding-left: 0.5rem; }
+        .toc-h3 { padding-left: 1rem; }
 
         /* Mermaid Styling */
         .mermaid svg { max-width: 100% !important; height: auto !important; margin: 0 auto; }
-        .mermaid { color: var(--text-main); font-family: 'Fira Code', monospace !important; }
+        .mermaid { color: var(--text-main); font-family: var(--font-main) !important; }
 
         .toast {
             position: fixed;
@@ -322,7 +394,7 @@
         }
     </style>
 </head>
-<body class="flex flex-col">
+<body class="flex flex-col compact">
     <!-- Skip Link for Keyboard Users -->
     <a href="#chat-window" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded focus:font-bold">SKIP_TO_CHAT</a>
 
@@ -367,6 +439,15 @@
         OFFLINE_MODE_ENABLED // SOME_FEATURES_MAY_BE_UNAVAILABLE
     </div>
 
+    <!-- Floating TOC -->
+    <div id="floating-toc" class="glass" aria-label="Table of Contents">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-800 pb-1">
+            <span class="text-[8px] font-bold text-blue-400 tracking-widest uppercase">CONTENTS</span>
+            <button onclick="window.closeTOC()" class="text-red-500 hover:text-red-400 text-[8px] font-bold">[X]</button>
+        </div>
+        <div id="toc-content" class="overflow-y-auto no-scrollbar flex flex-col gap-1.5"></div>
+    </div>
+
     <!-- Main Navigation -->
     <header class="border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
         <div class="flex items-center gap-1 sm:gap-3 overflow-hidden">
@@ -390,8 +471,8 @@
         <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
         <!-- Sidebar: History -->
-        <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-4 space-y-4 bg-[#0d1117] md:w-64 md:translate-x-0 md:static" aria-label="Chat History Sidebar" role="complementary">
-            <div class="space-y-2">
+        <aside id="sidebar" class="sidebar-mobile border-r border-gray-800 flex flex-col p-2 space-y-2 bg-[#0d1117] md:w-64 md:translate-x-0 md:static" aria-label="Chat History Sidebar" role="complementary">
+            <div class="space-y-1.5">
                 <div class="relative group">
                     <input type="text" id="chat-search" placeholder="SEARCH_HISTORY..." aria-label="Search chat history" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-[10px] focus:outline-none focus:border-blue-500 text-white font-mono transition-colors">
                     <div class="absolute right-2 top-2.5 text-gray-600 group-focus-within:text-blue-500 pointer-events-none">
@@ -408,7 +489,7 @@
                     <button onclick="toggleSelectionMode()" aria-label="Cancel management mode" class="border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors">CANCEL</button>
                 </div>
             </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto space-y-2 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
+            <div id="chat-history" class="flex-1 overflow-y-auto space-y-1 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
                 <!-- Chats will be injected here -->
             </div>
             
@@ -450,7 +531,7 @@
             </div>
 
             <div class="flex-1 min-h-0 relative flex flex-col">
-                <div id="chat-window" class="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
+                <div id="chat-window" class="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-3 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
                     <!-- Messages -->
                 </div>
                 
@@ -472,9 +553,9 @@
             </div>
 
             <!-- Input Area -->
-            <div class="p-2 sm:p-4 border-t border-gray-800">
-                <div id="attachment-preview" class="flex flex-wrap gap-2 mb-2" aria-label="Attached files preview"></div>
-                <div class="flex items-end gap-1 sm:gap-2 glass p-1 sm:p-2 rounded-lg">
+            <div class="p-1 sm:p-2 border-t border-gray-800">
+                <div id="attachment-preview" class="flex flex-wrap gap-1 mb-1" aria-label="Attached files preview"></div>
+                <div class="flex items-end gap-1 glass p-1 rounded-lg">
                     <label aria-label="Upload files" class="cursor-pointer p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                         <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
@@ -587,6 +668,23 @@
             </div>
             
             <div class="space-y-6 font-mono">
+                <!-- Font Selection -->
+                <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] text-blue-400 font-bold uppercase tracking-widest">INTERFACE_FONT</span>
+                        <span class="text-[8px] text-gray-500 uppercase">Terminal-style typography</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2">
+                        <select id="font-select" onchange="window.applyFont(this.value)" class="bg-gray-900 text-[10px] border border-gray-700 rounded p-2 focus:outline-none text-white font-mono">
+                            <option value="'Fira Code', monospace">Fira Code (Default)</option>
+                            <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                            <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                            <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                            <option value="'Courier Prime', monospace">Courier Prime</option>
+                        </select>
+                    </div>
+                </div>
+
                 <!-- Theme Selection -->
                 <div class="bg-gray-900/50 p-3 rounded border border-gray-800 space-y-3">
                     <div class="flex flex-col">
@@ -860,6 +958,7 @@
         let isSelectionMode = false;
         let userHasScrolledUp = false;
         let currentTheme = 'default';
+        let currentFont = "'Fira Code', monospace";
         let selectedChatIds = new Set();
         let chatHistoryUnsubscribe = null;
         let lastChatSnapshot = null;
@@ -944,6 +1043,13 @@
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         };
 
+        renderer.heading = function(token) {
+            const text = typeof token === 'object' ? token.text : token;
+            const level = typeof token === 'object' ? token.depth : 1;
+            const id = 'heading-' + Math.random().toString(36).substr(2, 5);
+            return `<h${level} id="${id}" class="font-bold my-2 text-blue-400/90">${text}</h${level}>`;
+        };
+
         renderer.code = function(token, lang, escaped) {
             const codeContent = typeof token === 'object' ? token.text : token;
             const language = typeof token === 'object' ? (token.lang || 'plaintext') : (lang || 'plaintext');
@@ -964,9 +1070,17 @@
             }
             
             const id = 'code-' + Math.random().toString(36).substr(2, 9);
-            return `<div class="relative group max-w-full overflow-hidden my-2">
+            const lineCount = codeContent.split('\n').length;
+            const isLong = lineCount > 15 || codeContent.length > 800;
+            const containerId = 'container-' + id;
+
+            return `<div id="${containerId}" class="code-block-container relative group max-w-full overflow-hidden my-2 ${isLong ? 'collapsed' : ''}">
                 <pre class="max-w-full overflow-x-auto hljs"><code class="language-${language}" id="${id}">${highlightedCode}</code></pre>
                 <button onclick="window.copyToClipboard('${id}')" class="code-copy-btn">COPY</button>
+                ${isLong ? `
+                    <div class="code-expand-btn" onclick="window.toggleCodeBlock('${containerId}')">SHOW_MORE (${lineCount}_LINES)</div>
+                    <button class="code-collapse-btn" onclick="window.toggleCodeBlock('${containerId}')">COLLAPSE</button>
+                ` : ''}
             </div>`;
         };
         
@@ -1071,6 +1185,17 @@
             window.showToast("CODE_COPIED", "success");
         };
 
+        window.toggleCodeBlock = (containerId) => {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.classList.toggle('collapsed');
+                if (!container.classList.contains('collapsed')) {
+                    // Update minimap when content expands
+                    window.updateMinimap();
+                }
+            }
+        };
+
         let mermaidTimer = null;
         window.renderMermaid = async () => {
             const elements = document.querySelectorAll('.mermaid:not([data-processed="true"])');
@@ -1089,6 +1214,42 @@
         window.toggleSidebar = () => {
             document.getElementById('sidebar').classList.toggle('open');
             document.getElementById('sidebar-overlay').classList.toggle('open');
+        };
+
+        window.closeTOC = () => {
+            document.getElementById('floating-toc').style.display = 'none';
+        };
+
+        window.toggleFloatingTOC = (msgDiv) => {
+            const toc = document.getElementById('floating-toc');
+            const content = document.getElementById('toc-content');
+            
+            if (toc.style.display === 'flex' && toc.dataset.activeMsgId === msgDiv.dataset.msgId) {
+                window.closeTOC();
+                return;
+            }
+
+            const headers = msgDiv.querySelectorAll('h1, h2, h3');
+            if (headers.length === 0) {
+                window.showToast("NO_HEADERS_FOUND_IN_MESSAGE", "info");
+                return;
+            }
+
+            content.innerHTML = '';
+            headers.forEach(h => {
+                const item = document.createElement('div');
+                item.className = `toc-item toc-${h.tagName.toLowerCase()}`;
+                item.innerText = h.innerText;
+                item.onclick = () => {
+                    h.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    h.classList.add('animate-pulse');
+                    setTimeout(() => h.classList.remove('animate-pulse'), 2000);
+                };
+                content.appendChild(item);
+            });
+
+            toc.dataset.activeMsgId = msgDiv.dataset.msgId;
+            toc.style.display = 'flex';
         };
 
         window.toggleAwareness = (forceValue) => {
@@ -1137,8 +1298,9 @@
             };
             updateParamUI();
             
-            // Reset Theme
+            // Reset Theme & Font
             window.applyTheme('default', false);
+            window.applyFont("'Fira Code', monospace", false);
 
             // Persist to Firebase
             if (currentUser) {
@@ -1147,7 +1309,8 @@
                         'preferences.defaultTextModel': defaultText,
                         'preferences.defaultSTTModel': defaultSTT,
                         'preferences.modelParams': modelParams,
-                        'preferences.theme': 'default'
+                        'preferences.theme': 'default',
+                        'preferences.font': "'Fira Code', monospace"
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
@@ -1182,6 +1345,24 @@
             if (persist && currentUser) {
                 await saveUserPreference('theme', theme);
                 window.showToast(`THEME_UPDATED: ${theme.toUpperCase()}`, "success");
+            }
+        };
+
+        window.applyFont = async (font, persist = true) => {
+            document.documentElement.style.setProperty('--font-main', font);
+            currentFont = font;
+            
+            const select = document.getElementById('font-select');
+            if (select) select.value = font;
+
+            if (persist && currentUser) {
+                await saveUserPreference('font', font);
+                window.showToast(`FONT_UPDATED: ${font.split(',')[0].replace(/'/g, '').toUpperCase()}`, "success");
+            }
+            
+            // Re-render Mermaid diagrams to respect font change
+            if (window.mermaid) {
+                window.renderMermaid();
             }
         };
 
@@ -1662,6 +1843,11 @@
             if (userPrefs.theme) {
                 applyTheme(userPrefs.theme, false);
             }
+            
+            // Load font
+            if (userPrefs.font) {
+                applyFont(userPrefs.font, false);
+            }
 
             // Listeners for persistence
             tSelect.onchange = (e) => saveUserPreference('defaultTextModel', e.target.value);
@@ -1833,9 +2019,13 @@
             const model = document.getElementById('text-model-select').value;
             
             try {
-                await addDoc(collection(db, `chats/${currentChatId}/messages`), {
+                const userMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
+                
+                const userBubbles = win.querySelectorAll('[data-role="user"]');
+                const lastUserBubble = userBubbles[userBubbles.length - 1];
+                if (lastUserBubble) lastUserBubble.dataset.msgId = userMsgRef.id;
 
                 let history = [];
                 if (isContextAware && currentChatId) {
@@ -1849,6 +2039,14 @@
 
                 window.showLoading("INITIALIZING_STREAM...");
                 const botMsgHandles = appendMessage('bot', "", userTimestamp + 10);
+                
+                // Add temporary typing indicator
+                const typingIndicator = document.createElement('div');
+                typingIndicator.id = 'active-typing-indicator';
+                typingIndicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
+                typingIndicator.innerText = "GENERATING_RESPONSE";
+                botMsgHandles.div.appendChild(typingIndicator);
+
                 const win = document.getElementById('chat-window');
 
                 const onUpdate = (fullText) => {
@@ -1856,6 +2054,12 @@
                     botMsgHandles.div.setAttribute('data-raw-content', fullText);
                     botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
                     
+                    // Check for headers to show TOC button
+                    const tocBtn = botMsgHandles.div.querySelector('.bot-toc-btn');
+                    if (tocBtn && (fullText.includes('# ') || fullText.includes('\n#'))) {
+                        tocBtn.classList.remove('hidden');
+                    }
+
                     // Smooth auto-scroll only if user is at the bottom
                     if (!userHasScrolledUp) {
                         win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
@@ -1866,9 +2070,10 @@
 
                 const response = await callAIWithFailover(text, processedAttachments, model, currentAbortController.signal, history, onUpdate);
                 
-                await addDoc(collection(db, `chats/${currentChatId}/messages`), {
+                const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'bot', content: response, timestamp: userTimestamp + 10
                 });
+                botMsgHandles.div.dataset.msgId = botMsgRef.id;
 
                 if (isNewChat) {
                     generateIntelligentTitle(currentChatId, text, response, model);
@@ -1887,6 +2092,9 @@
                     appendMessage('bot', "ERROR: " + err.message, Date.now());
                 }
             } finally {
+                const indicator = document.getElementById('active-typing-indicator');
+                if (indicator) indicator.remove();
+                
                 window.hideLoading();
                 isGenerating = false;
                 sendBtn.innerText = 'SEND';
@@ -2136,13 +2344,45 @@
             }
         }
 
-        function appendMessage(role, content, timestamp = Date.now()) {
+        function getRelativeTimeString(timestamp) {
+            const now = Date.now();
+            const diff = now - timestamp;
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (seconds < 10) return 'JUST_NOW';
+            if (seconds < 60) return `${seconds}S_AGO`;
+            if (minutes < 60) return `${minutes}M_AGO`;
+            if (hours < 24) return `${hours}H_AGO`;
+            return `${days}D_AGO`;
+        }
+
+        function appendMessage(role, content, timestamp = Date.now(), msgId = null) {
             const win = document.getElementById('chat-window');
             const div = document.createElement('div');
             div.dataset.role = role;
-            const marginClass = role === 'user' ? 'ml-4 sm:ml-12 md:ml-20 lg:ml-32' : 'mr-4 sm:mr-12 md:mr-20 lg:mr-32';
-            div.className = `p-3 md:p-4 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col overflow-hidden`;
+            div.dataset.timestamp = timestamp;
+            if (msgId) div.dataset.msgId = msgId;
+            const marginClass = role === 'user' ? 'ml-4 sm:ml-8 md:ml-12 lg:ml-20' : 'mr-4 sm:mr-8 md:mr-12 lg:mr-20';
+            div.className = `p-2 md:p-3 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col overflow-hidden group/msg transition-all duration-200`;
             
+            const metaDiv = document.createElement('div');
+            metaDiv.className = "flex justify-between items-center mb-1 text-[9px] font-mono tracking-tighter opacity-40 group-hover/msg:opacity-100 transition-opacity";
+            
+            const roleTag = document.createElement('span');
+            roleTag.className = role === 'user' ? 'text-gray-400' : 'text-blue-400 font-bold';
+            roleTag.innerText = role.toUpperCase();
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = "relative-time cursor-help";
+            timeSpan.title = new Date(timestamp).toLocaleString();
+            timeSpan.innerText = getRelativeTimeString(timestamp);
+
+            metaDiv.appendChild(roleTag);
+            metaDiv.appendChild(timeSpan);
+
             const rawContent = document.createElement('div');
             rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto";
             
@@ -2161,10 +2401,23 @@
             };
             copyBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg><span>COPY_RAW</span></div>`;
 
+            if (role === 'user') {
+                const editBtn = document.createElement('button');
+                editBtn.className = "text-[10px] text-gray-400 hover:text-yellow-400 focus:text-yellow-400 transition-colors focus:outline-none";
+                editBtn.onclick = () => window.editMessage(div);
+                editBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg><span>EDIT</span></div>`;
+                actionsDiv.appendChild(editBtn);
+            }
+
             const pdfBtn = document.createElement('button');
             pdfBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
             pdfBtn.onclick = () => window.exportSinglePDF(div);
             pdfBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg><span>EXPORT_PDF</span></div>`;
+
+            const tocBtn = document.createElement('button');
+            tocBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none hidden bot-toc-btn";
+            tocBtn.onclick = () => window.toggleFloatingTOC(div);
+            tocBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg><span>TOC</span></div>`;
 
             const forkBtn = document.createElement('button');
             forkBtn.className = "text-[10px] text-gray-400 hover:text-green-400 focus:text-green-400 transition-colors focus:outline-none";
@@ -2173,22 +2426,200 @@
 
             actionsDiv.appendChild(copyBtn);
             actionsDiv.appendChild(pdfBtn);
+            if (role === 'bot') actionsDiv.appendChild(tocBtn);
             actionsDiv.appendChild(forkBtn);
 
+            div.appendChild(metaDiv);
             div.appendChild(rawContent);
             div.appendChild(actionsDiv);
             div.setAttribute('data-raw-content', content || "");
+
+            // Initial check for TOC button visibility
+            if (role === 'bot') {
+                const tocBtn = actionsDiv.querySelector('.bot-toc-btn');
+                if (tocBtn && (content.includes('# ') || content.includes('\n#'))) {
+                    tocBtn.classList.remove('hidden');
+                }
+            }
             
             win.appendChild(div);
             
             if (!userHasScrolledUp) {
                 win.scrollTop = win.scrollHeight;
+            } else {
+                // If user is scrolled up and new message arrives, pulse the jump button
+                const jumpBtn = document.getElementById('jump-bottom');
+                if (jumpBtn) jumpBtn.classList.add('pulse');
             }
             
             updateMinimap();
             window.renderMermaid();
             return { div, rawContent };
         }
+
+        window.editMessage = (div) => {
+            if (isGenerating) {
+                window.showToast("CANNOT_EDIT_WHILE_GENERATING", "error");
+                return;
+            }
+            const originalContent = div.getAttribute('data-raw-content');
+            const markdownBody = div.querySelector('.markdown-body');
+            const actions = div.querySelector('.flex.gap-4.mt-2');
+            
+            markdownBody.classList.add('hidden');
+            actions.classList.add('hidden');
+            
+            const editContainer = document.createElement('div');
+            editContainer.className = "flex flex-col gap-2 mt-2";
+            editContainer.id = "active-edit-container";
+            
+            const textarea = document.createElement('textarea');
+            textarea.className = "w-full bg-black/40 border border-blue-500/30 rounded p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono resize-none chat-scroll";
+            textarea.value = originalContent;
+            textarea.rows = Math.max(3, originalContent.split('\n').length);
+            
+            const btns = document.createElement('div');
+            btns.className = "flex gap-2 justify-end";
+            
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = "px-3 py-1 text-[10px] font-bold text-gray-500 hover:text-white uppercase";
+            cancelBtn.innerText = "CANCEL";
+            cancelBtn.onclick = () => window.cancelEdit(div, originalContent);
+            
+            const saveBtn = document.createElement('button');
+            saveBtn.className = "px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase";
+            saveBtn.innerText = "SAVE_AND_RESUBMIT";
+            saveBtn.onclick = () => window.saveEdit(div, textarea.value);
+            
+            btns.appendChild(cancelBtn);
+            btns.appendChild(saveBtn);
+            editContainer.appendChild(textarea);
+            editContainer.appendChild(btns);
+            div.appendChild(editContainer);
+            
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            
+            textarea.style.height = 'auto';
+            textarea.style.height = (textarea.scrollHeight) + 'px';
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+            });
+        };
+
+        window.cancelEdit = (div, originalContent) => {
+            const container = div.querySelector('#active-edit-container');
+            if (container) container.remove();
+            
+            div.querySelector('.markdown-body').classList.remove('hidden');
+            div.querySelector('.flex.gap-4.mt-2').classList.remove('hidden');
+        };
+
+        window.saveEdit = async (div, newContent) => {
+            const msgId = div.dataset.msgId;
+            const originalContent = div.getAttribute('data-raw-content');
+            
+            if (newContent.trim() === originalContent.trim()) {
+                window.cancelEdit(div, originalContent);
+                return;
+            }
+
+            if (!newContent.trim()) {
+                window.showToast("MESSAGE_CANNOT_BE_EMPTY", "error");
+                return;
+            }
+
+            window.showLoading("UPDATING_MESSAGE...");
+            try {
+                if (currentChatId && msgId) {
+                    await updateDoc(doc(db, `chats/${currentChatId}/messages`, msgId), {
+                        content: newContent,
+                        isEdited: true,
+                        editedAt: Date.now()
+                    });
+                }
+                
+                div.setAttribute('data-raw-content', newContent);
+                div.querySelector('.markdown-body').innerHTML = marked.parse(newContent);
+                window.cancelEdit(div, newContent);
+                
+                window.resubmitFromEdit(newContent);
+                
+            } catch (err) {
+                console.error("Update failed:", err);
+                window.showToast("UPDATE_FAILED", "error");
+                window.cancelEdit(div, originalContent);
+            } finally {
+                window.hideLoading();
+            }
+        };
+
+        window.resubmitFromEdit = async (text) => {
+            const sendBtn = document.getElementById('send-btn');
+            isGenerating = true;
+            sendBtn.innerText = 'STOP';
+            sendBtn.classList.replace('bg-blue-600', 'bg-red-600');
+            sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+
+            currentAbortController = new AbortController();
+            const model = document.getElementById('text-model-select').value;
+            const userTimestamp = Date.now();
+            const win = document.getElementById('chat-window');
+
+            try {
+                let history = [];
+                if (isContextAware && currentChatId) {
+                    const q = query(collection(db, `chats/${currentChatId}/messages`), orderBy("timestamp", "asc"));
+                    const snap = await getDocs(q);
+                    snap.forEach(doc => {
+                        const d = doc.data();
+                        history.push({ role: d.role === 'bot' ? 'assistant' : 'user', content: d.content });
+                    });
+                }
+
+                window.showLoading("GENERATING_NEW_RESPONSE...");
+                const botMsgHandles = appendMessage('bot', "", userTimestamp + 5);
+                
+                const typingIndicator = document.createElement('div');
+                typingIndicator.id = 'active-typing-indicator';
+                typingIndicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
+                typingIndicator.innerText = "RE_GENERATING_RESPONSE";
+                botMsgHandles.div.appendChild(typingIndicator);
+
+                const onUpdate = (fullText) => {
+                    window.hideLoading();
+                    botMsgHandles.div.setAttribute('data-raw-content', fullText);
+                    botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                    if (!userHasScrolledUp) {
+                        win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
+                    }
+                    updateMinimap();
+                    window.renderMermaid();
+                };
+
+                const response = await callAIWithFailover(text, [], model, currentAbortController.signal, history, onUpdate);
+                
+                const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
+                    role: 'bot', content: response, timestamp: userTimestamp + 5
+                });
+                botMsgHandles.div.dataset.msgId = botMsgRef.id;
+
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    appendMessage('bot', "ERROR_ON_RESUBMIT: " + err.message, Date.now());
+                }
+            } finally {
+                const indicator = document.getElementById('active-typing-indicator');
+                if (indicator) indicator.remove();
+                window.hideLoading();
+                isGenerating = false;
+                sendBtn.innerText = 'SEND';
+                sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                currentAbortController = null;
+            }
+        };
 
         // --- NEW SCROLL & MINIMAP LOGIC ---
         window.scrollToEdge = (dir) => {
@@ -2199,6 +2630,7 @@
             } else {
                 win.scrollTo({ top: win.scrollHeight, behavior: 'smooth' });
                 userHasScrolledUp = false;
+                document.getElementById('jump-bottom').classList.remove('pulse');
             }
         };
 
@@ -2267,19 +2699,33 @@
             };
         }
 
-        // Initialize Scroll Listener
+        // Initialize Scroll Listener & Timestamps
         document.addEventListener('DOMContentLoaded', () => {
             const win = document.getElementById('chat-window');
             if (win) {
                 win.addEventListener('scroll', () => {
                     const atBottom = win.scrollHeight - win.scrollTop <= win.clientHeight + 50;
                     userHasScrolledUp = !atBottom;
+                    if (atBottom) {
+                        document.getElementById('jump-bottom').classList.remove('pulse');
+                    }
                     updateMinimap();
                 });
             }
             // Resize observer for minimap updates
             const ro = new ResizeObserver(() => updateMinimap());
             if (win) ro.observe(win);
+
+            // Periodically refresh relative timestamps
+            setInterval(() => {
+                document.querySelectorAll('.relative-time').forEach(el => {
+                    const msgDiv = el.closest('[data-timestamp]');
+                    if (msgDiv) {
+                        const ts = parseInt(msgDiv.dataset.timestamp);
+                        el.innerText = getRelativeTimeString(ts);
+                    }
+                });
+            }, 30000); // Every 30 seconds
         });
 
         // --- SPEECH TO TEXT (CUSTOM API IMPLEMENTATION) ---
@@ -2723,6 +3169,7 @@
             currentChatId = null;
             userHasScrolledUp = false;
             document.getElementById('chat-window').innerHTML = '';
+            window.closeTOC();
             updateMinimap();
             // Clear visual active state in sidebar
             document.querySelectorAll('#chat-history > div').forEach(div => {
@@ -2918,6 +3365,7 @@
         async function loadSpecificChat(id) {
             currentChatId = id;
             userHasScrolledUp = false; // Reset scroll state for new chat
+            window.closeTOC();
             // Update visual active state in sidebar
             document.querySelectorAll('#chat-history > div').forEach(div => {
                 const isThis = div.getAttribute('data-chat-id') === id;
@@ -2935,9 +3383,9 @@
             try {
                 const q = query(collection(db, `chats/${id}/messages`), orderBy("timestamp", "asc"));
                 const querySnapshot = await getDocs(q);
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    appendMessage(data.role, data.content, data.timestamp);
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    appendMessage(data.role, data.content, data.timestamp, docSnap.id);
                 });
                 updateMinimap();
             } catch (err) {
