@@ -80,10 +80,10 @@ service cloud.firestore {
       }
     }
 
-    // API health metrics (Admin-only read, Auth write for tracking)
+    // API health metrics (Admin-only read, Auth write/create for tracking)
     match /key_metrics/{metricId} {
       allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow write: if request.auth != null;
+      allow create, update: if request.auth != null;
     }
   }
 }
