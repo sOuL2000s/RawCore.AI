@@ -60,6 +60,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Source+Code+Pro:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
@@ -1005,6 +1006,14 @@
                     <textarea id="admin-groq-keys" aria-label="Groq API Keys (comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label for="admin-rotation-policy" class="block text-xs md:text-sm text-gray-400 uppercase">KEY_ROTATION_POLICY</label>
+                        <select id="admin-rotation-policy" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 text-sm text-blue-400 font-mono">
+                            <option value="round-robin">ROUND_ROBIN (Start from last success)</option>
+                            <option value="priority">PRIORITY_STRICT (Always start from index 0)</option>
+                        </select>
+                        <p class="text-[8px] text-gray-600 mt-1">ROUND_ROBIN spreads load. PRIORITY ensures first keys are exhausted before using backups.</p>
+                    </div>
                     <div>
                         <label for="admin-text-models" class="block text-xs md:text-sm text-gray-400 uppercase">TEXT_MODELS (provider:name)</label>
                         <textarea id="admin-text-models" aria-label="Available Text Models (provider:name, comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-20 md:h-24 text-sm" placeholder="gemini:gemini-1.5-flash, groq:llama3-8b-8192"></textarea>
@@ -1023,6 +1032,23 @@
                     </div>
                     <div id="admin-key-metrics" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-2 chat-scroll font-mono text-[10px]">
                         <div class="text-gray-500 italic p-4 text-center col-span-full">INITIALIZING_METRICS_STREAM...</div>
+                    </div>
+                </section>
+
+                <section class="pt-8 border-t border-gray-800">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-blue-400 font-bold uppercase tracking-tighter">USAGE_ANALYTICS</h3>
+                        <div class="flex gap-2">
+                            <button onclick="window.renderAnalyticsCharts()" class="text-[9px] border border-blue-500/50 px-2 py-1 rounded text-blue-400 hover:bg-blue-500/10 transition-colors font-bold uppercase">REFRESH_CHARTS</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="glass p-3 rounded border border-gray-800 h-64">
+                            <canvas id="tokenUsageChart"></canvas>
+                        </div>
+                        <div class="glass p-3 rounded border border-gray-800 h-64">
+                            <canvas id="errorRateChart"></canvas>
+                        </div>
                     </div>
                 </section>
 
@@ -1303,7 +1329,7 @@
             }
         };
         
-        async function updateKeyStatus(provider, key, status, error = null) {
+        async function updateKeyStatus(provider, key, status, error = null, tokens = 0) {
             if (!key || !currentUser) return;
             // Use a stable hash-like ID for the key to avoid exposing it while tracking
             const keyId = btoa(key).substring(0, 24).replace(/[/+=]/g, '');
@@ -1315,7 +1341,8 @@
                 lastUsed: Date.now(),
                 keySnippet: key.substring(0, 6) + "..." + key.slice(-4),
                 successCount: increment(status === 'ACTIVE' ? 1 : 0),
-                errorCount: increment(status !== 'ACTIVE' ? 1 : 0)
+                errorCount: increment(status !== 'ACTIVE' ? 1 : 0),
+                totalTokens: increment(tokens)
             };
 
             if (status === 'ACTIVE') {
@@ -1332,8 +1359,59 @@
             } catch (e) { console.warn("Metrics_Sync_Error", e); }
         }
 
+        let usageCharts = {};
+        window.renderAnalyticsCharts = () => {
+            getDocs(collection(db, "key_metrics")).then(snapshot => {
+                const data = [];
+                snapshot.forEach(doc => data.push(doc.data()));
+                
+                const labels = data.map(d => `${d.provider.toUpperCase()}_${d.keySnippet}`);
+                const tokenData = data.map(d => d.totalTokens || 0);
+                const errorData = data.map(d => d.errorCount || 0);
+                const successData = data.map(d => d.successCount || 0);
+
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888', font: { size: 9, family: 'Fira Code' } } },
+                        x: { grid: { display: false }, ticks: { color: '#888', font: { size: 8, family: 'Fira Code' } } }
+                    },
+                    plugins: { 
+                        legend: { labels: { color: '#e6edf3', font: { family: 'Fira Code', size: 10 } } }
+                    }
+                };
+
+                if (usageCharts.tokens) usageCharts.tokens.destroy();
+                usageCharts.tokens = new Chart(document.getElementById('tokenUsageChart'), {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{ label: 'TOTAL_TOKEN_CONSUMPTION', data: tokenData, backgroundColor: 'rgba(59, 130, 246, 0.5)', borderColor: '#3b82f6', borderWidth: 1 }]
+                    },
+                    options: chartOptions
+                });
+
+                if (usageCharts.errors) usageCharts.errors.destroy();
+                usageCharts.errors = new Chart(document.getElementById('errorRateChart'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'SUCCESS_OPS', data: successData, borderColor: '#10b981', tension: 0.3, fill: false },
+                            { label: 'ERROR_OPS', data: errorData, borderColor: '#ef4444', tension: 0.3, fill: false }
+                        ]
+                    },
+                    options: chartOptions
+                });
+            });
+        };
+
         function loadKeyMetrics() {
             onSnapshot(collection(db, "key_metrics"), (snapshot) => {
+                const panel = document.getElementById('admin-panel');
+                if (panel && !panel.classList.contains('hidden')) window.renderAnalyticsCharts();
+
                 const container = document.getElementById('admin-key-metrics');
                 if (!container) return;
                 
@@ -1354,6 +1432,7 @@
                             <div class="grid grid-cols-2 gap-x-2 text-[8px] text-gray-500 uppercase">
                                 <div>OK: <span class="text-gray-300">${m.successCount || 0}</span></div>
                                 <div>FAIL: <span class="${m.errorCount > 0 ? 'text-red-500' : 'text-gray-300'}">${m.errorCount || 0}</span></div>
+                                <div class="col-span-2">TOKENS: <span class="text-blue-400 font-bold">${(m.totalTokens || 0).toLocaleString()}</span></div>
                                 <div class="col-span-2 mt-1 truncate border-t border-gray-800/50 pt-1">
                                     LAST: <span class="text-gray-400">${lastTime}</span> 
                                     ${m.lastError ? `<span class="text-red-900 ml-1">>> ${m.lastError}</span>` : ''}
@@ -1380,9 +1459,9 @@
             const checkGemini = async (key) => {
                 try {
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-                    if (res.ok) await updateKeyStatus('gemini', key, 'ACTIVE');
+                    if (res.ok) await updateKeyStatus('gemini', key, 'ACTIVE', null, 0);
                     else throw new Error(`HTTP_${res.status}`);
-                } catch (e) { await updateKeyStatus('gemini', key, 'ERROR', e.message); }
+                } catch (e) { await updateKeyStatus('gemini', key, 'ERROR', e.message, 0); }
             };
 
             const checkGroq = async (key) => {
@@ -1390,9 +1469,9 @@
                     const res = await fetch('https://api.groq.com/openai/v1/models', {
                         headers: { 'Authorization': `Bearer ${key}` }
                     });
-                    if (res.ok) await updateKeyStatus('groq', key, 'ACTIVE');
+                    if (res.ok) await updateKeyStatus('groq', key, 'ACTIVE', null, 0);
                     else throw new Error(`HTTP_${res.status}`);
-                } catch (e) { await updateKeyStatus('groq', key, 'ERROR', e.message); }
+                } catch (e) { await updateKeyStatus('groq', key, 'ERROR', e.message, 0); }
             };
 
             const tasks = [
@@ -2183,6 +2262,7 @@
                 if (isAdmin) {
                     loadUserRegistry();
                     loadKeyMetrics();
+                    setTimeout(() => window.renderAnalyticsCharts(), 2000);
                 }
             } else {
                 status.innerText = "NO_SESSION_FOUND...REDIRECTING_TO_LOGIN";
@@ -2223,6 +2303,7 @@
                 groqKeys: document.getElementById('admin-groq-keys').value.split(',').map(s => s.trim()).filter(Boolean),
                 textModels: document.getElementById('admin-text-models').value.split(',').map(s => s.trim()).filter(Boolean),
                 sttModels: document.getElementById('admin-stt-models').value.split(',').map(s => s.trim()).filter(Boolean),
+                rotationPolicy: document.getElementById('admin-rotation-policy').value
             };
             await setDoc(doc(db, "settings", "main"), data);
             window.showToast("CONFIG_SAVED", "success");
@@ -2610,6 +2691,7 @@
             document.getElementById('admin-groq-keys').value = (config.groqKeys || []).join(',');
             document.getElementById('admin-text-models').value = (config.textModels || []).join(',');
             document.getElementById('admin-stt-models').value = (config.sttModels || []).join(',');
+            if (config.rotationPolicy) document.getElementById('admin-rotation-policy').value = config.rotationPolicy;
         }
 
         // --- CHAT LOGIC ---
@@ -2950,7 +3032,12 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             const [provider, modelName] = modelValue.includes(':') ? modelValue.split(':') : ['gemini', modelValue];
             const isGroq = provider.toLowerCase() === 'groq';
             const keys = isGroq ? config.groqKeys : config.geminiKeys;
-            let keyIndex = isGroq ? currentGroqKeyIndex : currentGeminiKeyIndex;
+            
+            const policy = config.rotationPolicy || 'round-robin';
+            let keyIndex = 0;
+            if (policy === 'round-robin') {
+                keyIndex = isGroq ? currentGroqKeyIndex : currentGeminiKeyIndex;
+            }
 
             if (!keys || keys.length === 0) {
                 const err = `ERROR: NO KEYS CONFIGURED FOR ${provider.toUpperCase()}`;
@@ -2979,7 +3066,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                             await fetchGemini(prompt, processedAttachments, modelName, currentKey, signal, history, handleUpdate);
                             currentGeminiKeyIndex = idx;
                         }
-                        updateKeyStatus(provider, currentKey, 'ACTIVE');
+                        const tokens = Math.ceil(response.length / 4);
+                        updateKeyStatus(provider, currentKey, 'ACTIVE', null, tokens);
                         return response;
                     } catch (err) {
                         if (err.name === 'AbortError' || (signal && signal.aborted)) throw err;
@@ -3831,7 +3919,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     console.warn(`${provider} STT Key ${idx} failed, trying next...`, err);
                     let status = 'ERROR';
                     if (err.message.includes('429')) status = 'RATE_LIMIT';
-                    updateKeyStatus(provider, currentKey, status, err.message);
+                    updateKeyStatus(provider, currentKey, status, err.message, 0);
                 }
             }
             throw new Error("All STT API keys failed.");
