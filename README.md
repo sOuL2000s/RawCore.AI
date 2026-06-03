@@ -37,48 +37,65 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions for readability
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // User profiles
     match /users/{userId} {
-      allow read, create: if request.auth != null && request.auth.uid == userId;
-      // Allow users to update their own profile EXCEPT the isAdmin field
-      allow update: if request.auth != null && request.auth.uid == userId 
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin']));
+      allow read, create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Allow users to update their own profile (preferences/font/theme) 
+      // but strictly forbid changing their admin status.
+      allow update: if isAuthenticated() && request.auth.uid == userId 
+                    && (request.resource.data.isAdmin == resource.data.isAdmin || !request.resource.data.hasAny(['isAdmin']));
 
-      // System Prompts Library subcollection
+      // System Prompts Library
       match /prompts/{promptId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
       }
 
-      // Admin specific permissions for users collection (listing, deleting other users)
-      allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Admin Management
+      allow list: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
-    // Global settings (All authenticated users can read broadcast and config)
+    // Global settings
     match /settings/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-
-      // Allow admins to access history versions subcollection
-      match /versions/{versionId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      }
+      // Note: All users read 'main' to get API keys for client-side failover
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // Chat history ownership
+    // Chat history
     match /chats/{chatId} {
-      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Ensure users only interact with their own conversations
+      allow read, update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Prevent users from creating chats for other UIDs
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
 
       match /messages/{messageId} {
-        allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
+        // Nested check to verify chat ownership before allowing message access
+        allow read, write: if isAuthenticated() && 
+          get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
       }
     }
 
-    // API health metrics (Admin-only read/list, Auth write/create for tracking)
+    // API health metrics
     match /key_metrics/{metricId} {
-      allow get, list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-      allow create, update: if request.auth != null;
+      // Admins monitor health; users only report it
+      allow get, list: if isAdmin();
+      
+      // Allow incrementing success/error counts and token usage
+      // We allow 'create' because of the hashed ID logic in updateKeyStatus
+      allow create, update: if isAuthenticated();
     }
   }
 }
