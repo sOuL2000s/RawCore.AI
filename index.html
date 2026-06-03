@@ -64,6 +64,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Source+Code+Pro:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
+
+        /* Force visibility of desktop header controls on larger screens */
+        @media (min-width: 768px) {
+            #desktop-header-right { display: flex !important; }
+        }
+        @media (max-width: 767px) {
+            #desktop-header-right { display: none !important; }
+        }
+
         :root {
             --bg-primary: #0d1117;
             --bg-secondary: #161b22;
@@ -367,10 +376,38 @@
         .drag-over::after { content: 'DROP_FILES_HERE'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.8); color: #3b82f6; font-weight: bold; font-size: 1.2rem; z-index: 100; pointer-events: none; }
 
         @media (max-width: 768px) {
-            .sidebar-mobile { position: fixed; z-index: 40; height: 100%; transform: translateX(-100%); transition: transform 0.3s; width: 85%; max-width: 320px; }
+            .sidebar-mobile { 
+                position: fixed; 
+                top: 0;
+                left: 0;
+                z-index: 60; 
+                height: 100dvh; 
+                transform: translateX(-100%); 
+                transition: transform 0.3s; 
+                width: 85%; 
+                max-width: 320px; 
+                padding-bottom: env(safe-area-inset-bottom, 1rem) !important;
+                overflow: hidden;
+            }
             .sidebar-mobile.open { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.8); }
-            .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 35; }
+            .sidebar-overlay { 
+                display: none; 
+                position: fixed; 
+                inset: 0; 
+                background: rgba(0,0,0,0.4); 
+                backdrop-filter: blur(8px); 
+                -webkit-backdrop-filter: blur(8px); 
+                z-index: 40; 
+            }
             .sidebar-overlay.open { display: block; }
+        }
+
+        #header-mobile-menu {
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        #header-mobile-menu.open {
+            transform: translateX(0);
         }
 
         /* TV and Ultra-wide optimization */
@@ -513,13 +550,15 @@
     </div>
 
     <!-- Main Navigation -->
-    <header class="border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
+    <header class="relative z-[50] border-b border-gray-800 p-2 sm:p-3 md:p-4 flex justify-between items-center bg-black">
         <div class="flex items-center gap-1 sm:gap-3 overflow-hidden">
-            <button type="button" onclick="toggleSidebar()" class="md:hidden text-gray-400 text-xl p-2" aria-label="Toggle Sidebar Menu">☰</button>
+            <button type="button" onclick="toggleSidebar()" class="flex md:hidden text-gray-400 text-xl p-2 items-center justify-center" aria-label="Toggle Sidebar Menu">☰</button>
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L28 10 L28 22 L16 30 L4 22 L4 10 Z' fill='none' stroke='%233b82f6' stroke-width='2'/%3E%3Cpath d='M16 8 L22 12 L22 20 L16 24 L10 20 L10 12 Z' fill='%233b82f6'/%3E%3C/svg%3E" class="w-5 h-5 md:w-6 md:h-6 shrink-0" alt="RawCore.AI Logo - Pure LLM Interface">
-            <h1 class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden xs:inline">[BETA]</span></h1>
+            <h1 class="font-bold text-base sm:text-lg md:text-xl tracking-tighter truncate">RawCore.AI <span class="hidden sm:inline">[BETA]</span></h1>
         </div>
-        <div class="flex gap-1 md:gap-3 items-center shrink-0">
+        
+        <!-- Desktop Navigation Controls -->
+        <div id="desktop-header-right" class="gap-1 md:gap-3 items-center shrink-0">
             <div id="user-identity" class="hidden items-center gap-2 mr-1 md:mr-2">
                 <div class="flex flex-col items-end text-[8px] md:text-[9px] font-mono tracking-tighter leading-none">
                     <span class="text-gray-600">SESSION_ID</span>
@@ -532,7 +571,47 @@
             <button type="button" onclick="togglePanel('admin-panel')" id="admin-btn" aria-label="Open Admin Configuration" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
             <button type="button" onclick="logout()" aria-label="Logout" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
         </div>
+
+        <!-- Mobile Header Menu Toggle -->
+        <button type="button" onclick="toggleHeaderMenu()" class="flex md:hidden text-gray-400 text-xl p-2 shrink-0 items-center justify-center" aria-label="Open Mobile Menu">⋮</button>
     </header>
+
+    <!-- Header Mobile Menu Overlay -->
+    <div id="header-mobile-menu-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-md z-[89] hidden" onclick="toggleHeaderMenu()"></div>
+
+    <!-- Header Mobile Menu Panel -->
+    <aside id="header-mobile-menu" class="fixed right-0 top-0 h-full w-[250px] max-w-[80%] glass z-[90] flex flex-col p-6 gap-6" role="dialog" aria-modal="true" aria-labelledby="mobile-menu-title">
+        <div class="flex justify-between items-center border-b border-gray-800 pb-4">
+            <span id="mobile-menu-title" class="text-xs font-bold text-blue-400 uppercase tracking-widest">Session_Menu</span>
+            <button onclick="toggleHeaderMenu()" class="text-gray-400 hover:text-white text-2xl" aria-label="Close menu">×</button>
+        </div>
+
+        <div id="user-identity-mobile" class="hidden flex-col items-center gap-4 py-4 bg-black/20 rounded-lg border border-gray-800">
+            <img id="user-avatar-mobile" class="w-16 h-16 rounded-full border-2 border-blue-500/50 bg-gray-900" src="" alt="" aria-hidden="true">
+            <div class="flex flex-col items-center text-center px-2">
+                <span class="text-[10px] text-gray-500 font-mono uppercase">Current_User</span>
+                <span id="user-email-display-mobile" class="text-blue-400 font-mono text-[10px] break-all uppercase tracking-tighter"></span>
+            </div>
+        </div>
+
+        <nav class="flex flex-col gap-3">
+            <button onclick="window.toggleKeyMap(); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-blue-400 border border-blue-400/30 p-3 rounded hover:bg-blue-400/10 transition-colors flex justify-between items-center uppercase">
+                <span>Shortcut_Keys</span>
+                <span class="text-[9px] opacity-40">ALT+K</span>
+            </button>
+            <button onclick="togglePanel('help-panel'); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-blue-400 border border-blue-400/30 p-3 rounded hover:bg-blue-400/10 transition-colors flex justify-between items-center uppercase">
+                <span>Documentation</span>
+                <span class="text-[9px] opacity-40">ALT+H</span>
+            </button>
+            <button id="admin-btn-mobile" onclick="togglePanel('admin-panel'); toggleHeaderMenu();" class="hidden w-full text-left text-xs font-bold text-yellow-500 border border-yellow-500/30 p-3 rounded hover:bg-yellow-500/10 transition-colors flex justify-between items-center uppercase">
+                <span>Admin_Config</span>
+                <span class="text-[9px] opacity-40">ALT+A</span>
+            </button>
+            <button onclick="logout(); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-red-500 border border-red-500/30 p-3 rounded hover:bg-red-500/10 transition-colors mt-4 uppercase">
+                Terminate_Session
+            </button>
+        </nav>
+    </aside>
 
     <main class="flex-1 flex overflow-hidden relative bg-[#0d1117]">
         <!-- Sidebar Overlay (Mobile) -->
@@ -573,12 +652,12 @@
                     <div id="active-tags-list" class="flex flex-wrap gap-1"></div>
                 </div>
             </div>
-            <div id="chat-history" class="flex-1 overflow-y-auto space-y-1 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
+            <div id="chat-history" class="flex-1 min-h-0 overflow-y-auto space-y-1 text-[11px] md:text-xs text-gray-400" role="list" aria-label="Previous conversations">
                 <!-- Chats will be injected here -->
             </div>
             
             <!-- Clipboard History -->
-            <div id="clipboard-history-container" class="mt-auto border-t border-gray-800 pt-3 pb-2 hidden">
+            <div id="clipboard-history-container" class="mt-auto border-t border-gray-800 pt-3 pb-2 hidden shrink-0">
                 <div class="flex justify-between items-center mb-2 px-1">
                     <span class="text-[8px] font-bold text-blue-400 tracking-widest uppercase">CLIPBOARD_LOG</span>
                     <button onclick="window.clearClipboardHistory()" class="text-red-500 hover:text-red-400 text-[8px] font-bold">[CLEAR]</button>
@@ -587,7 +666,7 @@
             </div>
 
             <!-- Export Dropdown -->
-            <div class="relative pt-2" id="export-dropdown-container">
+            <div class="relative pt-2 pb-2 md:pb-0 shrink-0" id="export-dropdown-container">
                 <button onclick="toggleExportMenu()" aria-haspopup="true" aria-expanded="false" aria-label="Export conversation options" class="text-xs text-blue-400 underline text-left flex items-center gap-1 uppercase tracking-tighter">
                     EXPORT_CONVERSATION
                     <svg class="w-3 h-3 transition-transform duration-200" id="export-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -1512,6 +1591,21 @@
             if (sidebar && overlay) {
                 sidebar.classList.toggle('open');
                 overlay.classList.toggle('open');
+                // Close header menu if it's open
+                const hMenu = document.getElementById('header-mobile-menu');
+                if (hMenu && hMenu.classList.contains('open')) window.toggleHeaderMenu();
+            }
+        };
+
+        window.toggleHeaderMenu = () => {
+            const menu = document.getElementById('header-mobile-menu');
+            const overlay = document.getElementById('header-mobile-menu-overlay');
+            if (menu && overlay) {
+                menu.classList.toggle('open');
+                overlay.classList.toggle('hidden');
+                // Close sidebar if it's open
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar && sidebar.classList.contains('open')) window.toggleSidebar();
             }
         };
 
@@ -2556,15 +2650,26 @@
                 authScreen.classList.add('hidden');
                 document.removeEventListener('keydown', authScreen._trapHandler);
                 
+                // Desktop Identity
                 const identityEl = document.getElementById('user-identity');
                 const emailDisplay = document.getElementById('user-email-display');
                 const avatarEl = document.getElementById('user-avatar');
+                
+                // Mobile Identity
+                const identityElMob = document.getElementById('user-identity-mobile');
+                const emailDisplayMob = document.getElementById('user-email-display-mobile');
+                const avatarElMob = document.getElementById('user-avatar-mobile');
+
+                const seed = user.email ? user.email.toLowerCase().trim() : 'anon';
+                const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0d1117`;
+
                 if (identityEl) { identityEl.classList.remove('hidden'); identityEl.classList.add('flex'); }
                 if (emailDisplay) emailDisplay.innerText = user.email ? user.email.toUpperCase() : 'ANONYMOUS';
-                if (avatarEl && user.email) {
-                    const seed = user.email.toLowerCase().trim();
-                    avatarEl.src = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0d1117`;
-                }
+                if (avatarEl) avatarEl.src = avatarUrl;
+
+                if (identityElMob) { identityElMob.classList.remove('hidden'); identityElMob.classList.add('flex'); }
+                if (emailDisplayMob) emailDisplayMob.innerText = user.email ? user.email.toUpperCase() : 'ANONYMOUS';
+                if (avatarElMob) avatarElMob.src = avatarUrl;
 
                 let isAdmin = false;
                 try {
@@ -2581,10 +2686,15 @@
                     console.error("Profile load error:", err);
                 }
 
+                const adminBtn = document.getElementById('admin-btn');
+                const adminBtnMob = document.getElementById('admin-btn-mobile');
+
                 if (isAdmin) {
-                    document.getElementById('admin-btn').classList.remove('hidden');
+                    if (adminBtn) adminBtn.classList.remove('hidden');
+                    if (adminBtnMob) adminBtnMob.classList.remove('hidden');
                 } else {
-                    document.getElementById('admin-btn').classList.add('hidden');
+                    if (adminBtn) adminBtn.classList.add('hidden');
+                    if (adminBtnMob) adminBtnMob.classList.add('hidden');
                 }
 
                 await loadConfig();
@@ -2600,12 +2710,21 @@
                 status.innerText = "NO_SESSION_FOUND...REDIRECTING_TO_LOGIN";
                 currentUser = null;
                 currentChatId = null;
+
                 const identityEl = document.getElementById('user-identity');
                 const emailDisplay = document.getElementById('user-email-display');
                 const avatarEl = document.getElementById('user-avatar');
                 if (identityEl) { identityEl.classList.add('hidden'); identityEl.classList.remove('flex'); }
                 if (emailDisplay) emailDisplay.innerText = '';
                 if (avatarEl) avatarEl.src = '';
+
+                const identityElMob = document.getElementById('user-identity-mobile');
+                const emailDisplayMob = document.getElementById('user-email-display-mobile');
+                const avatarElMob = document.getElementById('user-avatar-mobile');
+                if (identityElMob) { identityElMob.classList.add('hidden'); identityElMob.classList.remove('flex'); }
+                if (emailDisplayMob) emailDisplayMob.innerText = '';
+                if (avatarElMob) avatarElMob.src = '';
+
                 document.getElementById('chat-window').innerHTML = '';
                 document.getElementById('chat-history').innerHTML = '';
                 authScreen.classList.remove('hidden');
@@ -2621,7 +2740,11 @@
                     }
                 };
                 document.addEventListener('keydown', authScreen._trapHandler);
-                document.getElementById('admin-btn').classList.add('hidden');
+                
+                const adminBtn = document.getElementById('admin-btn');
+                const adminBtnMob = document.getElementById('admin-btn-mobile');
+                if (adminBtn) adminBtn.classList.add('hidden');
+                if (adminBtnMob) adminBtnMob.classList.add('hidden');
             }
 
             // Smooth fade out splash
