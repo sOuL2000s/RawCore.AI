@@ -428,6 +428,15 @@
     </style>
 </head>
 <body class="flex flex-col compact">
+    <!-- System Broadcast Banner -->
+    <div id="broadcast-banner" class="hidden bg-blue-600 text-white text-[10px] font-bold py-1.5 px-4 text-center sticky top-0 z-[80] border-b border-white/10 shadow-lg">
+        <div class="flex items-center justify-center gap-3">
+            <span class="animate-pulse">●</span>
+            <span id="broadcast-text" class="uppercase tracking-widest">SYSTEM_BROADCAST_MESSAGE_INITIALIZING...</span>
+            <span class="animate-pulse">●</span>
+        </div>
+    </div>
+
     <!-- Skip Link for Keyboard Users -->
     <a href="#chat-window" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-blue-600 focus:text-white focus:px-4 focus:py-2 focus:rounded focus:font-bold">SKIP_TO_CHAT</a>
 
@@ -997,6 +1006,14 @@
             </div>
             
             <div class="space-y-4 md:space-y-6">
+                <div class="bg-blue-900/10 border border-blue-500/20 p-4 rounded-lg">
+                    <label for="admin-broadcast-msg" class="block text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">SYSTEM_BROADCAST_BANNER</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="admin-broadcast-msg" class="flex-1 bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500 text-white" placeholder="ENTER_ALERT_TEXT_OR_LEAVE_EMPTY_TO_HIDE">
+                        <button onclick="window.updateBroadcast()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-[10px] font-bold transition-colors">PUSH_ALERT</button>
+                    </div>
+                    <p class="text-[8px] text-gray-500 mt-2 uppercase">Broadcasts to all active users in real-time. Clearing text hides the banner.</p>
+                </div>
                 <div>
                     <label for="admin-gemini-keys" class="block text-xs md:text-sm text-gray-400 uppercase">GEMINI_API_KEYS</label>
                     <textarea id="admin-gemini-keys" aria-label="Gemini API Keys (comma separated)" class="w-full bg-gray-900 border border-gray-700 p-2 rounded mt-1 h-16 md:h-20 text-sm" placeholder="key1, key2"></textarea>
@@ -1053,7 +1070,10 @@
                 </section>
 
                 <section class="pt-8 border-t border-gray-800">
-                    <h3 class="text-blue-400 font-bold mb-4 uppercase tracking-tighter">USER_MANAGEMENT</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-blue-400 font-bold uppercase tracking-tighter">USER_MANAGEMENT</h3>
+                        <button onclick="window.exportUsersCSV()" class="text-[9px] border border-green-500/50 px-2 py-1 rounded text-green-400 hover:bg-green-500/10 transition-colors font-bold uppercase">EXPORT_USER_REGISTRY_CSV</button>
+                    </div>
                     <div class="mb-4">
                         <input type="text" id="admin-user-search" oninput="window.filterUserList()" placeholder="SEARCH_USERS_BY_EMAIL" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500">
                     </div>
@@ -1218,6 +1238,43 @@
         let allUsers = []; 
         let clipboardHistory = JSON.parse(localStorage.getItem('rawcore_clipboard_history') || '[]');
 
+        // --- BROADCAST LOGIC ---
+        function setupBroadcastListener() {
+            onSnapshot(doc(db, "settings", "broadcast"), (snap) => {
+                const banner = document.getElementById('broadcast-banner');
+                const text = document.getElementById('broadcast-text');
+                const adminInput = document.getElementById('admin-broadcast-msg');
+                
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.message && data.message.trim() !== "") {
+                        text.innerText = data.message;
+                        banner.classList.remove('hidden');
+                        if (adminInput) adminInput.value = data.message;
+                    } else {
+                        banner.classList.add('hidden');
+                        if (adminInput) adminInput.value = "";
+                    }
+                } else {
+                    banner.classList.add('hidden');
+                }
+            });
+        }
+
+        window.updateBroadcast = async () => {
+            const msg = document.getElementById('admin-broadcast-msg').value.trim();
+            try {
+                await setDoc(doc(db, "settings", "broadcast"), {
+                    message: msg,
+                    updatedAt: Date.now(),
+                    updatedBy: currentUser.uid
+                });
+                window.showToast(msg ? "BROADCAST_PUSHED" : "BROADCAST_CLEARED", "success");
+            } catch (e) {
+                window.showToast("BROADCAST_UPDATE_FAILED", "error");
+            }
+        };
+
         // --- GLOBAL UI FUNCTIONS ---
         window.toggleArchivedView = () => {
             showArchived = !showArchived;
@@ -1260,6 +1317,15 @@
             }
             window.showToast(isFull ? "FOCUS_MODE_ENABLED" : "FOCUS_MODE_DISABLED", "info");
             window.updateMinimap();
+        };
+
+        window.toggleSidebar = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar && overlay) {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('open');
+            }
         };
 
         window.toggleModelMenu = () => {
@@ -1910,8 +1976,10 @@
                 frequencyPenalty: 0.0, freqEnabled: false,
                 presencePenalty: 0.0, presenceEnabled: false,
                 maxTokens: 4096, tokensEnabled: false,
+                stopSequences: "", stopSequencesEnabled: false,
                 customCSS: ""
             };
+            isContextAware = true;
             updateParamUI();
             window.applyCustomCSS("");
             
@@ -1931,15 +1999,25 @@
                 try {
                     const batchUpdate = {
                         'preferences.defaultTextModel': defaultText,
+                        'preferences.defaultTextModel2': defaultText,
                         'preferences.defaultSTTModel': defaultSTT,
                         'preferences.modelParams': modelParams,
                         'preferences.theme': 'default',
-                        'preferences.font': "'Fira Code', monospace"
+                        'preferences.font': "'Fira Code', monospace",
+                        'preferences.summarizationEnabled': false,
+                        'preferences.parallelEnabled': false,
+                        'preferences.jsonModeEnabled': false
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
+                    userPrefs.defaultTextModel2 = defaultText;
                     userPrefs.defaultSTTModel = defaultSTT;
+                    userPrefs.modelParams = { ...modelParams };
                     userPrefs.theme = 'default';
+                    userPrefs.font = "'Fira Code', monospace";
+                    userPrefs.summarizationEnabled = false;
+                    userPrefs.parallelEnabled = false;
+                    userPrefs.jsonModeEnabled = false;
                     window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
                 } catch (e) {
                     console.error("Reset failed:", e);
@@ -2259,6 +2337,7 @@
                 await loadConfig();
                 await loadChatHistory();
                 await loadSystemPrompts();
+                setupBroadcastListener();
                 if (isAdmin) {
                     loadUserRegistry();
                     loadKeyMetrics();
@@ -2360,6 +2439,38 @@
             const term = document.getElementById('admin-user-search').value.toLowerCase();
             const filtered = allUsers.filter(u => u.email.toLowerCase().includes(term));
             renderUserList(filtered);
+        };
+
+        window.exportUsersCSV = () => {
+            if (!allUsers || allUsers.length === 0) {
+                window.showToast("NO_USERS_TO_EXPORT", "error");
+                return;
+            }
+
+            const headers = ["UID", "EMAIL", "IS_ADMIN", "CREATED_AT", "PROVIDER"];
+            const rows = allUsers.map(u => [
+                u.id,
+                u.email || "N/A",
+                u.isAdmin ? "TRUE" : "FALSE",
+                u.createdAt ? new Date(u.createdAt).toISOString() : "N/A",
+                u.provider || "EMAIL_PASS"
+            ]);
+
+            const csvContent = [
+                headers.join(","),
+                ...rows.map(r => r.map(val => `"${val}"`).join(","))
+            ].join("\n");
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `RawCore_Users_${Date.now()}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.showToast("USER_REGISTRY_EXPORTED", "success");
         };
 
         window.toggleUserAdmin = async (uid, currentStatus) => {
@@ -2497,7 +2608,11 @@
                     snapshot.forEach(doc => systemPrompts.push({ id: doc.id, ...doc.data() }));
                     renderPromptSelector();
                 }, (error) => {
-                    console.warn("System_Prompts_Access_Denied (Check Firestore Rules):", error);
+                    if (error.code === 'permission-denied') {
+                        console.warn("System_Prompts_Access_Denied: Check Firestore Rules for sub-collections. Note: net::ERR_BLOCKED_BY_CLIENT errors in console suggest an AdBlocker is interfering with Firebase connections.", error);
+                    } else {
+                        console.warn("System_Prompts_Subscription_Error:", error);
+                    }
                     systemPrompts = [];
                     renderPromptSelector();
                 });

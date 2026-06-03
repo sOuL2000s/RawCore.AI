@@ -39,55 +39,45 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      // Allow a user to read their own profile
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      // Allow a user to create their own profile (e.g., on signup or first Google login)
-      allow create: if request.auth != null && request.auth.uid == userId;
-
-      // Allow a user to update their own profile (e.g., preferences)
-      allow update: if request.auth != null && request.auth.uid == userId;
+      allow read, create: if request.auth != null && request.auth.uid == userId;
+      // Allow users to update their own profile EXCEPT the isAdmin field
+      allow update: if request.auth != null && request.auth.uid == userId 
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin']));
 
       // System Prompts Library subcollection
       match /prompts/{promptId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // Admin specific permissions for users collection
-      // Allow admins to list (read all) users
+      // Admin specific permissions for users collection (listing, deleting other users)
       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-
-      // Allow admins to update any user's profile (e.g., toggle isAdmin)
-      allow update: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-
-      // Allow admins to delete any user's profile
-      allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Global settings (Admin only for write, Auth for read)
-    match /settings/main {
+    // Global settings (All authenticated users can read broadcast and config)
+    match /settings/{document} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Allow admins to access history versions subcollection
+      match /versions/{versionId} {
+        allow read, write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      }
     }
 
     // Chat history ownership
     match /chats/{chatId} {
-      // Allow users to read, update or delete chats they own
       allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
-      
-      // Allow a user to create a new chat if they set themselves as the owner
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
 
       match /messages/{messageId} {
-        // Messages inherit permissions from parent chat ownership
         allow read, write: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid;
       }
     }
 
-    // API health metrics (Admin-only read, Auth write/create for tracking)
+    // API health metrics (Admin-only read/list, Auth write/create for tracking)
     match /key_metrics/{metricId} {
-      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow get, list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
       allow create, update: if request.auth != null;
     }
   }
