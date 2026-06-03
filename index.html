@@ -110,6 +110,15 @@
             --accent-hover: #528bff;
         }
 
+        body.theme-high-contrast {
+            --bg-primary: #000000;
+            --bg-secondary: #000000;
+            --border-ui: #ffffff;
+            --text-main: #ffffff;
+            --accent: #ffffff;
+            --accent-hover: #cccccc;
+        }
+
         body { font-family: var(--font-main); background-color: var(--bg-primary); color: var(--text-main); transition: background-color 0.3s, color 0.3s, font-family 0.2s; }
         #sidebar, #chat-window, .sidebar-mobile, main, #splash-screen { background-color: var(--bg-primary) !important; }
         
@@ -371,7 +380,11 @@
 
         /* Print Styles for Native PDF Export (Ctrl+P) */
         @media print {
-            aside, header, #admin-btn, #mic-btn, #send-btn, .border-t, .model-selectors, #ai-loading, .code-copy-btn, label, #batch-actions, .toast, #export-menu, .flex.gap-4.mt-2, #attachment-preview {
+            @page { margin: 1.5cm; }
+            aside, header, #admin-btn, #mic-btn, #send-btn, .border-t, .px-2.sm\:px-4.py-2.border-b, 
+            #ai-loading, .code-copy-btn, .code-expand-btn, .code-collapse-btn, label, #batch-actions, .toast, #export-menu, 
+            .flex.gap-4.mt-2, #attachment-preview, #broadcast-banner, #network-status, .scroll-btn, 
+            #floating-toc, #minimap-track, #jump-top, #jump-bottom, .typing-indicator {
                 display: none !important;
             }
             body, main, #chat-window, .max-wide-container {
@@ -383,27 +396,29 @@
                 max-width: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                box-shadow: none !important;
             }
             #chat-window {
                 padding: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
+                display: block !important;
+                overflow: visible !important;
             }
             .markdown-body {
                 color: #000 !important;
                 font-family: 'Fira Code', monospace !important;
                 font-size: 10pt !important;
-                line-height: 1.4 !important;
+                line-height: 1.5 !important;
             }
             .markdown-body pre {
-                background: #f4f4f4 !important;
+                background: #f9f9f9 !important;
                 color: #000 !important;
-                border: 1px solid #ddd !important;
-                padding: 8pt !important;
+                border: 1px solid #eee !important;
+                padding: 10pt !important;
                 white-space: pre-wrap !important;
                 word-break: break-all !important;
                 font-size: 8.5pt !important;
-                margin: 8pt 0 !important;
+                margin: 10pt 0 !important;
+                page-break-inside: avoid !important;
             }
             .markdown-body code {
                 background: #f4f4f4 !important;
@@ -411,19 +426,26 @@
                 font-size: 8.5pt !important;
                 padding: 1pt 3pt !important;
             }
+            .markdown-body table { border: 1px solid #eee !important; width: 100% !important; }
+            .markdown-body th, .markdown-body td { border: 1px solid #eee !important; color: #000 !important; background: transparent !important; }
             .bg-gray-800, .bg-gray-900 {
                 background: white !important;
                 border: none !important;
-                border-bottom: 1px solid #eee !important;
+                border-bottom: 1px solid #f0f0f0 !important;
                 margin: 0 !important;
-                padding: 15pt 0 !important;
+                padding: 1.5rem 0 !important;
                 page-break-inside: avoid !important;
                 border-radius: 0 !important;
                 max-width: 100% !important;
                 width: 100% !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
             }
-            .bg-gray-800::before { content: ">>> USER_INPUT"; font-weight: bold; font-size: 7pt; color: #888; display: block; margin-bottom: 5pt; border-bottom: 1px dashed #eee; }
-            .bg-gray-900::before { content: ">>> RAWCORE_RESPONSE"; font-weight: bold; font-size: 7pt; color: #3b82f6; display: block; margin-bottom: 5pt; border-bottom: 1px dashed #eee; }
+            [data-role="user"] { margin-left: 0 !important; }
+            [data-role="bot"] { margin-right: 0 !important; }
+            .bg-gray-800::before { content: ">>> USER_INPUT"; font-weight: bold; font-size: 7pt; color: #888; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
+            .bg-gray-900::before { content: ">>> RAWCORE_RESPONSE"; font-weight: bold; font-size: 7pt; color: #3b82f6; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
+            .metrics-display, .relative-time { font-size: 6pt !important; color: #aaa !important; opacity: 1 !important; }
         }
     </style>
 </head>
@@ -505,6 +527,7 @@
                 </div>
                 <img id="user-avatar" class="w-6 h-6 md:w-8 md:h-8 rounded border border-gray-800 bg-gray-900" src="" alt="" aria-hidden="true">
             </div>
+            <button type="button" onclick="window.toggleKeyMap()" id="keymap-btn" aria-label="Show Shortcut Map" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">KEYS</button>
             <button type="button" onclick="togglePanel('help-panel')" id="help-btn" aria-label="Open User Guide" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">HELP</button>
             <button type="button" onclick="togglePanel('admin-panel')" id="admin-btn" aria-label="Open Admin Configuration" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
             <button type="button" onclick="logout()" aria-label="Logout" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
@@ -528,6 +551,13 @@
                 <div class="flex gap-1">
                     <button id="manage-chats-btn" onclick="toggleSelectionMode()" aria-label="Toggle batch management mode" class="flex-1 border border-gray-700 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-400 transition-colors uppercase font-mono tracking-tighter">Manage</button>
                     <button onclick="deleteAllChats()" aria-label="Clear all chat history" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="window.exportFullDatabase()" aria-label="Export all chats as JSON" class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-blue-400/70 transition-colors uppercase font-mono tracking-tighter">Backup_DB</button>
+                    <label class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-blue-400/70 transition-colors uppercase font-mono tracking-tighter cursor-pointer text-center flex items-center justify-center">
+                        Restore_DB
+                        <input type="file" accept=".json" class="hidden" onchange="window.importFullDatabase(this.files[0]); this.value='';">
+                    </label>
                 </div>
                 <div id="batch-actions" class="hidden flex gap-1">
                     <button onclick="deleteSelectedChats()" aria-label="Delete selected conversations" class="flex-1 bg-red-900/40 border border-red-500 p-1 hover:bg-red-900/60 rounded text-[9px] text-red-200 transition-colors uppercase font-mono tracking-tighter">Delete Selected (<span id="selected-count">0</span>)</button>
@@ -810,6 +840,7 @@
                         <button onclick="window.applyTheme('oled')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="oled">OLED_BLACK</button>
                         <button onclick="window.applyTheme('matrix')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="matrix">MATRIX_GLITCH</button>
                         <button onclick="window.applyTheme('cyberpunk')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="cyberpunk">CYBERPUNK</button>
+                        <button onclick="window.applyTheme('high-contrast')" class="theme-btn border border-gray-700 p-2 text-[10px] rounded hover:border-blue-500 transition-colors uppercase" data-theme="high-contrast">HIGH_CONTRAST</button>
                     </div>
                 </div>
 
@@ -997,6 +1028,66 @@
         </div>
     </div>
 
+    <!-- Keyboard Map Overlay -->
+    <div id="keymap-overlay" class="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="window.toggleKeyMap()">
+        <div class="glass w-full max-w-2xl rounded-lg p-6 border border-blue-500/30" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-800 pb-2">
+                <h3 class="text-xl font-bold text-blue-400 tracking-tighter uppercase">KEYBOARD_SHORTCUT_MAP</h3>
+                <button onclick="window.toggleKeyMap()" class="text-red-500 font-bold text-xs">[CLOSE]</button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">NEW_CONVERSATION</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+N</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">TOGGLE_SIDEBAR</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+S</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">FOCUS_MODE</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+F</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">MODEL_PARAMS</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+P</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">JSON_MODE</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+J</kbd>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">VOICE_INPUT</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+V</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">EXPORT_MENU</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+E</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">MANAGE_MODE</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+M</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">HELP_PANEL</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+H</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">SHORTCUT_MAP</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+K</kbd>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center text-[9px] text-gray-500 font-mono uppercase tracking-tighter">
+                <span>PRESS [/] TO_FOCUS_INPUT</span>
+                <span>PRESS [ESC] TO_CLOSE_OVERLAYS</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Admin Panel Modal -->
     <div id="admin-panel" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl hidden p-4 md:p-10 overflow-y-auto" role="dialog" aria-labelledby="admin-title">
         <div class="max-w-4xl mx-auto">
@@ -1154,7 +1245,7 @@
             
             // Global Escape key handling
             if (e.key === 'Escape') {
-                const panels = ['help-panel', 'admin-panel', 'custom-modal', 'text-editor-modal'];
+                const panels = ['help-panel', 'admin-panel', 'custom-modal', 'text-editor-modal', 'keymap-overlay'];
                 panels.forEach(id => document.getElementById(id).classList.add('hidden'));
                 document.getElementById('export-menu').classList.add('hidden');
                 const arrow = document.getElementById('export-arrow');
@@ -1194,6 +1285,7 @@
                     case 'p': e.preventDefault(); window.togglePanel('settings-panel'); break;
                     case 'f': e.preventDefault(); window.toggleFullscreen(); break;
                     case 'j': e.preventDefault(); window.toggleJsonMode(); break;
+                    case 'k': e.preventDefault(); window.toggleKeyMap(); break;
                 }
             }
         });
@@ -1328,6 +1420,36 @@
             }
         };
 
+        window.toggleKeyMap = () => {
+            const el = document.getElementById('keymap-overlay');
+            if (!el) return;
+            const isClosing = !el.classList.contains('hidden');
+            if (isClosing) {
+                el.classList.add('hidden');
+                document.removeEventListener('keydown', el._trapHandler);
+            } else {
+                el.classList.remove('hidden');
+                const focusables = Array.from(el.querySelectorAll('button, kbd, [tabindex]:not([tabindex="-1"])'));
+                el._trapHandler = (e) => {
+                    if (e.key === 'Escape' || (e.key.toLowerCase() === 'k' && e.altKey)) {
+                        e.preventDefault();
+                        window.toggleKeyMap();
+                        return;
+                    }
+                    if (e.key === 'Tab') {
+                        const active = document.activeElement;
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+                        if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+                    }
+                };
+                document.addEventListener('keydown', el._trapHandler);
+                const closeBtn = el.querySelector('button');
+                if (closeBtn) setTimeout(() => closeBtn.focus(), 50);
+            }
+        };
+
         window.toggleModelMenu = () => {
             const menu = document.getElementById('model-extra-menu');
             const container = document.getElementById('model-menu-container');
@@ -1375,6 +1497,7 @@
             const isClosing = !el.classList.contains('hidden');
             if (isClosing) {
                 el.classList.add('hidden');
+                document.removeEventListener('keydown', el._trapHandler);
                 if (panelPrevFocus) {
                     panelPrevFocus.focus();
                     panelPrevFocus = null;
@@ -1382,16 +1505,23 @@
             } else {
                 panelPrevFocus = document.activeElement;
                 el.classList.remove('hidden');
-                const first = el.querySelector('button, input, textarea, [tabindex="0"]');
-                if (first) setTimeout(() => first.focus(), 50);
-                const handleEsc = (e) => {
+                const focusables = Array.from(el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(f => !f.disabled && f.offsetWidth > 0);
+                if (focusables.length > 0) setTimeout(() => focusables[0].focus(), 50);
+                
+                el._trapHandler = (e) => {
                     if (e.key === 'Escape') {
-                        el.classList.add('hidden');
-                        if (panelPrevFocus) panelPrevFocus.focus();
-                        document.removeEventListener('keydown', handleEsc);
+                        window.togglePanel(id);
+                        return;
+                    }
+                    if (e.key === 'Tab') {
+                        const active = document.activeElement;
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+                        if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
                     }
                 };
-                document.addEventListener('keydown', handleEsc);
+                document.addEventListener('keydown', el._trapHandler);
             }
         };
         
@@ -1594,7 +1724,10 @@
 
             return `<div id="${containerId}" class="code-block-container relative group max-w-full overflow-hidden my-2 ${isLong ? 'collapsed' : ''}">
                 <pre class="max-w-full overflow-x-auto hljs"><code class="language-${language}" id="${id}">${highlightedCode}</code></pre>
-                <button onclick="window.copyToClipboard('${id}')" class="code-copy-btn">COPY</button>
+                <div class="flex gap-1 absolute top-[5px] right-[5px] z-10">
+                    <button onclick="window.downloadCodeBlock('${id}', '${language}')" class="code-copy-btn !static" title="DOWNLOAD_FILE">DL</button>
+                    <button onclick="window.copyToClipboard('${id}')" class="code-copy-btn !static" title="COPY_TO_CLIPBOARD">COPY</button>
+                </div>
                 ${isLong ? `
                     <div class="code-expand-btn" onclick="window.toggleCodeBlock('${containerId}')">SHOW_MORE (${lineCount}_LINES)</div>
                     <button class="code-collapse-btn" onclick="window.toggleCodeBlock('${containerId}')">COLLAPSE</button>
@@ -1765,6 +1898,30 @@
             navigator.clipboard.writeText(text);
             window.addToClipboardHistory(text, `CODE_${lang.toUpperCase()}`);
             window.showToast("CODE_COPIED", "success");
+        };
+
+        window.downloadCodeBlock = (id, lang) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const text = el.innerText;
+            const extMap = {
+                'javascript': 'js', 'js': 'js', 'typescript': 'ts', 'ts': 'ts',
+                'python': 'py', 'py': 'py', 'html': 'html', 'css': 'css',
+                'json': 'json', 'markdown': 'md', 'md': 'md', 'shell': 'sh',
+                'bash': 'sh', 'sh': 'sh', 'sql': 'sql', 'yaml': 'yaml',
+                'yml': 'yaml', 'xml': 'xml', 'c': 'c', 'cpp': 'cpp',
+                'csharp': 'cs', 'java': 'java', 'rust': 'rs', 'go': 'go',
+                'php': 'php', 'ruby': 'rb', 'swift': 'swift', 'kotlin': 'kt'
+            };
+            const ext = extMap[lang.toLowerCase()] || 'txt';
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `snippet_${Date.now()}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            window.showToast("FILE_DOWNLOADED", "success");
         };
 
         window.toggleCodeBlock = (containerId) => {
@@ -2027,7 +2184,7 @@
         };
 
         window.applyTheme = async (theme, persist = true) => {
-            document.body.classList.remove('theme-oled', 'theme-matrix', 'theme-cyberpunk', 'theme-comfort');
+            document.body.classList.remove('theme-oled', 'theme-matrix', 'theme-cyberpunk', 'theme-comfort', 'theme-high-contrast');
             if (theme !== 'default') {
                 document.body.classList.add(`theme-${theme}`);
             }
@@ -2302,6 +2459,7 @@
                 status.innerText = "AUTHENTICATED_OK...LOADING_PROFILE";
                 currentUser = user;
                 authScreen.classList.add('hidden');
+                document.removeEventListener('keydown', authScreen._trapHandler);
                 
                 const identityEl = document.getElementById('user-identity');
                 const emailDisplay = document.getElementById('user-email-display');
@@ -2356,6 +2514,18 @@
                 document.getElementById('chat-window').innerHTML = '';
                 document.getElementById('chat-history').innerHTML = '';
                 authScreen.classList.remove('hidden');
+                const focusables = Array.from(authScreen.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])')).filter(f => !f.disabled);
+                if(focusables.length > 0) setTimeout(() => focusables[0].focus(), 100);
+                authScreen._trapHandler = (e) => {
+                    if (e.key === 'Tab') {
+                        const active = document.activeElement;
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+                        if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+                    }
+                };
+                document.addEventListener('keydown', authScreen._trapHandler);
                 document.getElementById('admin-btn').classList.add('hidden');
             }
 
@@ -3541,11 +3711,17 @@ QUANTUM_PHYSICS_QUARKS`;
             continueBtn.onclick = () => window.continueConversation();
             continueBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span>CONTINUE</span></div>`;
 
+            const speakBtn = document.createElement('button');
+            speakBtn.className = "speak-btn text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
+            speakBtn.onclick = () => window.speakMessage(div);
+            speakBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M12 8V7l4-2v12l-4-2v-1h-2a1 1 0 01-1-1V9a1 1 0 011-1h2z"></path></svg><span>SPEAK</span></div>`;
+
             actionsDiv.appendChild(copyBtn);
             actionsDiv.appendChild(pdfBtn);
             if (role === 'bot') {
                 actionsDiv.appendChild(tocBtn);
                 actionsDiv.appendChild(continueBtn);
+                actionsDiv.appendChild(speakBtn);
             }
             actionsDiv.appendChild(forkBtn);
 
@@ -4286,6 +4462,50 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         }
         window.continueConversation = continueConversation;
 
+        let currentUtterance = null;
+        window.speakMessage = (div) => {
+            const text = div.getAttribute('data-raw-content') || div.querySelector('.markdown-body').innerText;
+            const speakBtn = div.querySelector('.speak-btn');
+            
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                if (currentUtterance && currentUtterance._div === div) {
+                    currentUtterance = null;
+                    return;
+                }
+            }
+            
+            const cleanText = text.replace(/```[\s\S]*?```/g, '[CODE_BLOCK_SKIPPED]')
+                                 .replace(/[*#_~`\[\]()]/g, '')
+                                 .trim();
+
+            if (!cleanText) return;
+
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance._div = div;
+            currentUtterance = utterance;
+            
+            utterance.onstart = () => {
+                speakBtn?.classList.add('text-blue-500', 'animate-pulse');
+                const span = speakBtn?.querySelector('span');
+                if (span) span.innerText = "STOP";
+            };
+            utterance.onend = () => {
+                speakBtn?.classList.remove('text-blue-500', 'animate-pulse');
+                const span = speakBtn?.querySelector('span');
+                if (span) span.innerText = "SPEAK";
+                currentUtterance = null;
+            };
+            utterance.onerror = () => {
+                speakBtn?.classList.remove('text-blue-500', 'animate-pulse');
+                const span = speakBtn?.querySelector('span');
+                if (span) span.innerText = "SPEAK";
+                currentUtterance = null;
+            };
+
+            window.speechSynthesis.speak(utterance);
+        };
+
         async function forkConversation(chatId, timestamp) {
             if (!chatId || !timestamp) {
                 window.showToast("INVALID_FORK_POINT", "error");
@@ -4560,6 +4780,107 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     }
                 }
             });
+        };
+
+        window.exportFullDatabase = async () => {
+            if (!currentUser) return;
+            window.showLoading("PREPARING_FULL_DATABASE_BACKUP...");
+            try {
+                const q = query(collection(db, "chats"), where("userId", "==", currentUser.uid));
+                const chatSnap = await getDocs(q);
+                
+                const backup = {
+                    version: "1.0",
+                    exportDate: Date.now(),
+                    userId: currentUser.uid,
+                    chats: []
+                };
+
+                for (const chatDoc of chatSnap.docs) {
+                    const chatData = chatDoc.data();
+                    const msgQ = query(collection(db, `chats/${chatDoc.id}/messages`), orderBy("timestamp", "asc"));
+                    const msgSnap = await getDocs(msgQ);
+                    const messages = msgSnap.docs.map(m => m.data());
+                    
+                    backup.chats.push({
+                        metadata: chatData,
+                        messages: messages
+                    });
+                }
+
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `RawCore_Backup_${new Date().toISOString().slice(0,10)}_${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                window.showToast("DATABASE_BACKUP_COMPLETED", "success");
+            } catch (err) {
+                console.error("Backup failed:", err);
+                window.showToast("BACKUP_FAILED", "error");
+            } finally {
+                window.hideLoading();
+            }
+        };
+
+        window.importFullDatabase = async (file) => {
+            if (!file || !currentUser) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!data.chats || !Array.isArray(data.chats)) {
+                        throw new Error("INVALID_BACKUP_FORMAT");
+                    }
+
+                    window.showCustomModal({
+                        title: 'RESTORE_DATABASE',
+                        message: `IMPORT_${data.chats.length}_CONVERSATIONS? THIS_WILL_ADD_THEM_TO_YOUR_CURRENT_HISTORY.`,
+                        confirmText: 'START_IMPORT',
+                        onConfirm: async () => {
+                            window.showLoading("IMPORTING_DATA...");
+                            let count = 0;
+                            try {
+                                for (const chatObj of data.chats) {
+                                    const meta = chatObj.metadata || {};
+                                    const newChatRef = await addDoc(collection(db, "chats"), {
+                                        ...meta,
+                                        userId: currentUser.uid,
+                                        createdAt: meta.createdAt || Date.now()
+                                    });
+
+                                    const messages = chatObj.messages || [];
+                                    if (messages.length > 0) {
+                                        const batchSize = 450;
+                                        for (let i = 0; i < messages.length; i += batchSize) {
+                                            const batch = writeBatch(db);
+                                            const chunk = messages.slice(i, i + batchSize);
+                                            chunk.forEach(msg => {
+                                                const newMsgRef = doc(collection(db, `chats/${newChatRef.id}/messages`));
+                                                batch.set(newMsgRef, msg);
+                                            });
+                                            await batch.commit();
+                                        }
+                                    }
+                                    count++;
+                                }
+                                window.showToast(`IMPORT_SUCCESSFUL: ${count}_CHATS_RESTORED`, "success");
+                            } catch (err) {
+                                console.error("Import loop failed:", err);
+                                window.showToast("IMPORT_PARTIALLY_FAILED", "error");
+                            } finally {
+                                window.hideLoading();
+                            }
+                        }
+                    });
+                } catch (err) {
+                    console.error("Parse failed:", err);
+                    window.showToast("FAILED_TO_PARSE_BACKUP_FILE", "error");
+                }
+            };
+            reader.readAsText(file);
         };
 
         async function renderActiveChatTags(chatId) {
@@ -4894,6 +5215,18 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 }
 
                 modal.classList.remove('hidden');
+                const focusables = Array.from(modal.querySelectorAll('button, input, textarea, [tabindex]:not([tabindex="-1"])')).filter(f => !f.disabled);
+                modal._trapHandler = (e) => {
+                    if (e.key === 'Escape') { window.closeTextEditor(); return; }
+                    if (e.key === 'Tab') {
+                        const active = document.activeElement;
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+                        if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                        else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+                    }
+                };
+                document.addEventListener('keydown', modal._trapHandler);
                 document.getElementById('editor-content').focus();
             };
             reader.onerror = () => {
@@ -5018,7 +5351,9 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         };
 
         window.closeTextEditor = () => {
-            document.getElementById('text-editor-modal').classList.add('hidden');
+            const modal = document.getElementById('text-editor-modal');
+            modal.classList.add('hidden');
+            document.removeEventListener('keydown', modal._trapHandler);
             const saveBtn = document.getElementById('editor-save-btn');
             saveBtn.disabled = false;
             saveBtn.style.opacity = '1';
