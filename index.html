@@ -1162,8 +1162,17 @@
 
                 <section class="pt-8 border-t border-gray-800">
                     <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-blue-400 font-bold uppercase tracking-tighter">SYSTEM_DEBUG_TOOLS</h3>
+                        <button onclick="window.downloadConsoleLogs()" class="text-[9px] border border-yellow-500/50 px-2 py-1 rounded text-yellow-400 hover:bg-yellow-500/10 transition-colors font-bold uppercase">DOWNLOAD_CONSOLE_LOGS (.log)</button>
+                    </div>
+                </section>
+
+                <section class="pt-8 border-t border-gray-800">
+                    <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
                         <h3 class="text-blue-400 font-bold uppercase tracking-tighter">USER_MANAGEMENT</h3>
-                        <button onclick="window.exportUsersCSV()" class="text-[9px] border border-green-500/50 px-2 py-1 rounded text-green-400 hover:bg-green-500/10 transition-colors font-bold uppercase">EXPORT_USER_REGISTRY_CSV</button>
+                        <div class="flex gap-2">
+                            <button onclick="window.exportUsersCSV()" class="text-[9px] border border-green-500/50 px-2 py-1 rounded text-green-400 hover:bg-green-500/10 transition-colors font-bold uppercase">EXPORT_USERS_CSV</button>
+                        </div>
                     </div>
                     <div class="mb-4">
                         <input type="text" id="admin-user-search" oninput="window.filterUserList()" placeholder="SEARCH_USERS_BY_EMAIL" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500">
@@ -1238,6 +1247,46 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+
+        // --- CONSOLE LOG CAPTURE ---
+        const logHistory = [];
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        const formatLog = (type, args) => {
+            const timestamp = new Date().toISOString();
+            const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' ');
+            return `[${timestamp}] [${type}] ${message}`;
+        };
+
+        console.log = (...args) => {
+            logHistory.push(formatLog('LOG', args));
+            originalLog.apply(console, args);
+        };
+        console.warn = (...args) => {
+            logHistory.push(formatLog('WARN', args));
+            originalWarn.apply(console, args);
+        };
+        console.error = (...args) => {
+            logHistory.push(formatLog('ERROR', args));
+            originalError.apply(console, args);
+        };
+
+        window.downloadConsoleLogs = () => {
+            if (logHistory.length === 0) {
+                window.showToast("NO_LOGS_CAPTURED", "info");
+                return;
+            }
+            const blob = new Blob([logHistory.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `RawCore_Console_${Date.now()}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+            window.showToast("CONSOLE_LOGS_EXPORTED", "success");
+        };
 
         // Keyboard Shortcuts Handler
         window.addEventListener('keydown', (e) => {
@@ -2581,8 +2630,8 @@
                 const seed = (user.email || 'anon').toLowerCase().trim();
                 const avatarUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0d1117`;
                 return `
-                <div class="flex items-center justify-between p-2 glass rounded text-[11px] group">
-                    <div class="flex items-center gap-3 truncate pr-2">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between p-2 glass rounded text-[11px] group gap-3">
+                    <div class="flex items-center gap-3 truncate">
                         <img src="${avatarUrl}" class="w-6 h-6 rounded border border-gray-800 shrink-0" alt="" aria-hidden="true">
                         <div class="flex flex-col truncate">
                             <span class="text-white truncate">${user.email}</span>
@@ -2591,13 +2640,13 @@
                             </span>
                         </div>
                     </div>
-                    <div class="flex gap-1 shrink-0">
+                    <div class="flex gap-1 shrink-0 ml-9 sm:ml-0">
                         <button onclick="window.toggleUserAdmin('${user.id}', ${user.isAdmin})" 
-                                class="border border-blue-500/30 px-2 py-1 rounded text-[9px] hover:bg-blue-600/20 transition-colors uppercase">
+                                class="flex-1 sm:flex-none border border-blue-500/30 px-2 py-1 rounded text-[9px] hover:bg-blue-600/20 transition-colors uppercase text-center">
                             ROLE
                         </button>
                         <button onclick="window.deleteUserProfile('${user.id}', '${user.email}')" 
-                                class="border border-red-900/30 px-2 py-1 rounded text-[9px] text-red-500/50 hover:text-red-500 hover:bg-red-900/10 transition-colors uppercase">
+                                class="flex-1 sm:flex-none border border-red-900/30 px-2 py-1 rounded text-[9px] text-red-500/50 hover:text-red-500 hover:bg-red-900/10 transition-colors uppercase text-center">
                             DEL
                         </button>
                     </div>
@@ -3251,14 +3300,15 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
                     let startTime = Date.now();
                     const onUpdate = (fullText) => {
-                        const elapsed = (Date.now() - startTime) / 1000;
+                        const elapsedMs = Date.now() - startTime;
+                        const elapsedSec = elapsedMs / 1000;
                         const charCount = fullText.length;
                         const tokens = Math.ceil(charCount / 4); // Standard token heuristic
-                        const tps = elapsed > 0 ? (tokens / elapsed).toFixed(1) : 0;
+                        const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
                         
                         if (botMsgHandles.metricsSpan) {
                             botMsgHandles.metricsSpan.classList.remove('hidden');
-                            botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS]`;
+                            botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
                         }
 
                         botMsgHandles.div.setAttribute('data-raw-content', fullText);
@@ -3274,7 +3324,11 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     indicator.remove();
                     
                     const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
-                        role: 'bot', content: response, timestamp: userTimestamp + offset, modelLabel: modelValue
+                        role: 'bot', 
+                        content: response, 
+                        timestamp: userTimestamp + offset, 
+                        modelLabel: modelValue,
+                        aiPayload: currentPayload // Store the captured payload here
                     });
                     botMsgHandles.div.dataset.msgId = botMsgRef.id;
                     return response;
@@ -3487,10 +3541,13 @@ QUANTUM_PHYSICS_QUARKS`;
             };
             if (systemInstruction) body.system_instruction = systemInstruction;
 
+            // Capture the payload before sending
+            window.currentPayload = JSON.stringify(body, null, 2);
+
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: window.currentPayload, // Use the captured payload
                 signal: signal
             });
 
@@ -3572,10 +3629,13 @@ QUANTUM_PHYSICS_QUARKS`;
                 body.stop = modelParams.stopSequences.split(',').map(s => s.trim()).filter(Boolean);
             }
 
+            // Capture the payload before sending
+            window.currentPayload = JSON.stringify(body, null, 2);
+
             const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                body: JSON.stringify(body),
+                body: window.currentPayload, // Use the captured payload
                 signal: signal
             });
 
@@ -3715,6 +3775,11 @@ QUANTUM_PHYSICS_QUARKS`;
             speakBtn.className = "speak-btn text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
             speakBtn.onclick = () => window.speakMessage(div);
             speakBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M12 8V7l4-2v12l-4-2v-1h-2a1 1 0 01-1-1V9a1 1 0 011-1h2z"></path></svg><span>SPEAK</span></div>`;
+            
+            const payloadBtn = document.createElement('button');
+            payloadBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
+            payloadBtn.onclick = () => window.viewMessagePayload(div);
+            payloadBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg><span>PAYLOAD</span></div>`;
 
             actionsDiv.appendChild(copyBtn);
             actionsDiv.appendChild(pdfBtn);
@@ -3722,6 +3787,7 @@ QUANTUM_PHYSICS_QUARKS`;
                 actionsDiv.appendChild(tocBtn);
                 actionsDiv.appendChild(continueBtn);
                 actionsDiv.appendChild(speakBtn);
+                actionsDiv.appendChild(payloadBtn); // Add the new button here
             }
             actionsDiv.appendChild(forkBtn);
 
@@ -3832,7 +3898,10 @@ QUANTUM_PHYSICS_QUARKS`;
                     await updateDoc(doc(db, `chats/${currentChatId}/messages`, msgId), {
                         content: newContent,
                         isEdited: true,
-                        editedAt: Date.now()
+                        editedAt: Date.now(),
+                        // When a user message is edited, the old AI payload is no longer valid for the new user message.
+                        // However, we preserve the *bot's* original payload when it was generated.
+                        // This edit applies to the *user* message, so no AI payload for the user message itself.
                     });
                 }
                 
@@ -3912,14 +3981,15 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
                 const onUpdate = (fullText) => {
                     window.hideLoading();
-                    const elapsed = (Date.now() - startTime) / 1000;
+                    const elapsedMs = Date.now() - startTime;
+                    const elapsedSec = elapsedMs / 1000;
                     const charCount = fullText.length;
                     const tokens = Math.ceil(charCount / 4);
-                    const tps = elapsed > 0 ? (tokens / elapsed).toFixed(1) : 0;
+                    const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
                     
                     if (botMsgHandles.metricsSpan) {
                         botMsgHandles.metricsSpan.classList.remove('hidden');
-                        botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS]`;
+                        botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
                     }
 
                     botMsgHandles.div.setAttribute('data-raw-content', fullText);
@@ -3940,7 +4010,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
             } catch (err) {
                 if (err.name !== 'AbortError') {
-                    appendMessage('bot', "ERROR_ON_RESUBMIT: " + err.message, Date.now());
+                    appendMessage('bot', "ERROR_ON_RESUBMIT: " + err.message, Date.now(), null, window.currentPayload); // Pass payload even on error
                 }
             } finally {
                 const indicator = document.getElementById('active-typing-indicator');
@@ -3951,6 +4021,78 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
                 sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
                 currentAbortController = null;
+                window.currentPayload = null; // Clear payload after use
+            }
+        };
+
+        // Function to view the raw payload of a message
+        window.viewMessagePayload = async (messageDiv) => {
+            const msgId = messageDiv.dataset.msgId;
+            if (!msgId || !currentChatId) {
+                window.showToast("NO_MESSAGE_ID_FOUND", "error");
+                return;
+            }
+
+            window.showLoading("LOADING_PAYLOAD...");
+            try {
+                const msgDoc = await getDoc(doc(db, `chats/${currentChatId}/messages`, msgId));
+                if (msgDoc.exists()) {
+                    const data = msgDoc.data();
+                    const payload = data.aiPayload;
+                    if (payload) {
+                        const modal = document.getElementById('text-editor-modal');
+                        const editorFilename = document.getElementById('editor-filename');
+                        const editorContent = document.getElementById('editor-content');
+                        const editorViewToggle = document.getElementById('editor-view-toggle');
+                        const editorSaveBtn = document.getElementById('editor-save-btn');
+
+                        editorFilename.value = 'AI_PAYLOAD.json';
+                        editorContent.value = payload;
+                        
+                        editorSaveBtn.disabled = true;
+                        editorSaveBtn.style.opacity = '0.5';
+                        
+                        // Attempt to render as JSON tree view if valid JSON
+                        try {
+                            const json = JSON.parse(payload);
+                            window.renderJsonTree(json, document.getElementById('editor-tree-view'));
+                            document.getElementById('editor-content').classList.add('hidden');
+                            document.getElementById('editor-tree-view').classList.remove('hidden');
+                            editorViewToggle.classList.remove('hidden');
+                            editorViewToggle.innerText = "RAW_TEXT";
+                        } catch (e) {
+                            // If not valid JSON, show raw text
+                            document.getElementById('editor-content').classList.remove('hidden');
+                            document.getElementById('editor-tree-view').classList.add('hidden');
+                            editorViewToggle.classList.add('hidden');
+                            editorViewToggle.innerText = "TREE_VIEW";
+                        }
+
+                        modal.classList.remove('hidden');
+                        const focusables = Array.from(modal.querySelectorAll('button, input, textarea, [tabindex]:not([tabindex="-1"])')).filter(f => !f.disabled);
+                        modal._trapHandler = (e) => {
+                            if (e.key === 'Escape') { window.closeTextEditor(); return; }
+                            if (e.key === 'Tab') {
+                                const active = document.activeElement;
+                                const first = focusables[0];
+                                const last = focusables[focusables.length - 1];
+                                if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
+                                else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+                            }
+                        };
+                        document.addEventListener('keydown', modal._trapHandler);
+
+                    } else {
+                        window.showToast("NO_PAYLOAD_AVAILABLE_FOR_THIS_MESSAGE", "info");
+                    }
+                } else {
+                    window.showToast("MESSAGE_NOT_FOUND_IN_DATABASE", "error");
+                }
+            } catch (err) {
+                console.error("Failed to view payload:", err);
+                window.showToast("FAILED_TO_LOAD_PAYLOAD", "error");
+            } finally {
+                window.hideLoading();
             }
         };
 
@@ -4463,6 +4605,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         window.continueConversation = continueConversation;
 
         let currentUtterance = null;
+        window.currentPayload = null; // Global variable to store the latest AI payload sent
+
         window.speakMessage = (div) => {
             const text = div.getAttribute('data-raw-content') || div.querySelector('.markdown-body').innerText;
             const speakBtn = div.querySelector('.speak-btn');
@@ -5355,9 +5499,15 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             modal.classList.add('hidden');
             document.removeEventListener('keydown', modal._trapHandler);
             const saveBtn = document.getElementById('editor-save-btn');
-            saveBtn.disabled = false;
+            saveBtn.disabled = false; // Ensure it's enabled for future legitimate edits
             saveBtn.style.opacity = '1';
             editingFileIndex = -1;
+            
+            // Reset editor view to default (raw text)
+            document.getElementById('editor-content').classList.remove('hidden');
+            document.getElementById('editor-tree-view').classList.add('hidden');
+            document.getElementById('editor-view-toggle').classList.add('hidden');
+            document.getElementById('editor-view-toggle').innerText = "TREE_VIEW";
         };
 
     </script>
