@@ -780,6 +780,11 @@
                         <input type="file" id="file-input" class="hidden" multiple onchange="handleFiles(this.files)">
                     </label>
                     <textarea id="user-input" rows="1" aria-label="Enter your message" class="flex-1 bg-transparent resize-none p-2 focus:outline-none focus:ring-1 focus:ring-blue-500/30 rounded text-[13px] sm:text-sm min-h-[40px] max-h-[200px]" placeholder="Ask anything..." onkeydown="if(event.key === 'Enter' && !event.shiftKey){ event.preventDefault(); handleSendAction(); }"></textarea>
+                    <button onclick="checkGrammarAndSpelling()" id="grammar-check-btn" title="CHECK_GRAMMAR" aria-label="Check grammar and spelling" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0 transition-colors">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
                     <button onclick="startSpeech()" id="mic-btn" aria-label="Start voice input" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                     </button>
@@ -809,10 +814,12 @@
     </footer>
 
     <!-- Custom Modal -->
-    <div id="custom-modal" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="glass w-full max-w-sm rounded-lg p-6">
-            <h3 id="modal-title" class="text-lg font-bold text-blue-400 mb-2 uppercase tracking-tighter">CONFIRM_ACTION</h3>
-            <p id="modal-message" class="text-sm text-gray-400 mb-6 leading-relaxed"></p>
+    <div id="custom-modal" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-md hidden flex items-center justify-center p-2 sm:p-4">
+        <div class="glass w-full max-w-sm sm:max-w-xl rounded-lg p-4 sm:p-6 flex flex-col max-h-[90vh]">
+            <h3 id="modal-title" class="text-base sm:text-lg font-bold text-blue-400 mb-2 uppercase tracking-tighter shrink-0">CONFIRM_ACTION</h3>
+            <div id="modal-message-container" class="overflow-y-auto mb-6 chat-scroll pr-1">
+                <p id="modal-message" class="text-[12px] sm:text-sm text-gray-400 leading-relaxed whitespace-pre-wrap break-words"></p>
+            </div>
             <div id="modal-input-container" class="hidden mb-6">
                 <input type="text" id="modal-input" class="w-full bg-gray-900 border border-gray-700 p-2 rounded text-sm focus:outline-none focus:border-blue-500" placeholder="ENTER_VALUE">
             </div>
@@ -1128,6 +1135,12 @@
                     <input type="text" id="editor-filename" class="bg-gray-900 border border-gray-700 px-2 py-1 rounded text-xs text-white focus:outline-none focus:border-blue-500 flex-1 font-mono" placeholder="filename.txt">
                 </div>
                 <div class="flex gap-2 items-center">
+                    <button id="editor-grammar-btn" onclick="window.checkEditorGrammar()" title="CHECK_GRAMMAR" class="px-3 py-1 text-[10px] font-bold text-blue-400 border border-blue-400/30 hover:bg-blue-400/10 rounded uppercase transition-colors flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>GRAMMAR</span>
+                    </button>
                     <button id="editor-view-toggle" onclick="window.toggleEditorView()" class="hidden px-3 py-1 text-[10px] font-bold text-blue-400 border border-blue-400/30 hover:bg-blue-400/10 rounded uppercase transition-colors">TREE_VIEW</button>
                     <button onclick="window.closeTextEditor()" class="px-3 py-1 text-[10px] font-bold text-gray-500 hover:text-white uppercase transition-colors">CANCEL</button>
                     <button id="editor-save-btn" onclick="window.saveEditedText()" class="px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase transition-colors">SAVE_CHANGES</button>
@@ -3518,6 +3531,115 @@
             }
         });
 
+        // --- GRAMMAR CHECKER LOGIC ---
+        window.checkGrammarAndSpelling = async () => {
+            const inputEl = document.getElementById('user-input');
+            const originalText = inputEl.value.trim();
+
+            if (!originalText) {
+                window.showToast("INPUT_IS_EMPTY_NOTHING_TO_CHECK", "info");
+                return;
+            }
+
+            const grammarBtn = document.getElementById('grammar-check-btn');
+            const originalBtnHtml = grammarBtn.innerHTML;
+            grammarBtn.disabled = true;
+            grammarBtn.innerHTML = `<div class="loader"></div>`;
+
+            window.showLoading("CHECKING_GRAMMAR...");
+
+            try {
+                // Precise prompt for grammar correction using the LLM
+                const grammarPrompt = `You are an advanced grammar and spelling checker. Your only task is to review the provided text for any grammatical errors, punctuation mistakes, or spelling errors.
+If there are errors, return *only* the corrected version of the text.
+If the text is already perfect or you cannot find any errors, return the *exact original text* without any modifications or additional comments.
+Do not explain your changes. Do not add any introductory or concluding remarks.
+
+TEXT_TO_CHECK:
+"""
+${originalText}
+"""`;
+
+                const model = document.getElementById('text-model-select').value;
+                // Execute grammar check without history or attachments to keep it focused
+                const correctedText = await callAIWithFailover(grammarPrompt, [], model, null, []);
+
+                if (correctedText && correctedText.trim() !== originalText.trim()) {
+                    window.showCustomModal({
+                        title: 'GRAMMAR_SUGGESTION',
+                        message: `Original Text:\n\n"${originalText}"\n\nSuggested Correction:\n\n"${correctedText}"`,
+                        confirmText: 'APPLY_CORRECTION',
+                        confirmClass: 'bg-blue-600 hover:bg-blue-500',
+                        onConfirm: () => {
+                            inputEl.value = correctedText.trim();
+                            adjustHeight(inputEl);
+                            window.showToast("GRAMMAR_CORRECTED_REVIEW_CHANGES", "success");
+                        }
+                    });
+                } else {
+                    window.showToast("NO_GRAMMAR_OR_SPELLING_ERRORS_FOUND", "info");
+                }
+
+            } catch (err) {
+                console.error("Grammar check failed:", err);
+                window.showToast("GRAMMAR_CHECK_FAILED: " + err.message, "error");
+            } finally {
+                window.hideLoading();
+                grammarBtn.disabled = false;
+                grammarBtn.innerHTML = originalBtnHtml;
+            }
+        };
+
+        window.checkEditorGrammar = async () => {
+            const editorEl = document.getElementById('editor-content');
+            const treeView = document.getElementById('editor-tree-view');
+            
+            if (!treeView.classList.contains('hidden')) {
+                window.showToast("CANNOT_CHECK_GRAMMAR_IN_TREE_VIEW", "warning");
+                return;
+            }
+
+            const originalText = editorEl.value.trim();
+
+            if (!originalText) {
+                window.showToast("EDITOR_CONTENT_IS_EMPTY", "info");
+                return;
+            }
+
+            const grammarBtn = document.getElementById('editor-grammar-btn');
+            const originalBtnHtml = grammarBtn.innerHTML;
+            grammarBtn.disabled = true;
+            grammarBtn.innerHTML = `<div class="loader"></div> <span>CHECKING...</span>`;
+
+            window.showLoading("CHECKING_EDITOR_GRAMMAR...");
+
+            try {
+                const grammarPrompt = `You are an advanced grammar and spelling checker. Review the provided text.
+Return ONLY the corrected version of the text. If no errors, return original text. NO EXPLANATIONS.
+
+TEXT:
+${originalText}`;
+
+                const model = document.getElementById('text-model-select').value;
+                const correctedText = await callAIWithFailover(grammarPrompt, [], model, null, []);
+
+                if (correctedText && correctedText.trim() !== originalText.trim()) {
+                    editorEl.value = correctedText.trim();
+                    window.showToast("EDITOR_GRAMMAR_AUTO_CORRECTED", "success");
+                } else {
+                    window.showToast("NO_ERRORS_FOUND_IN_EDITOR", "info");
+                }
+
+            } catch (err) {
+                console.error("Editor grammar check failed:", err);
+                window.showToast("GRAMMAR_CHECK_FAILED: " + err.message, "error");
+            } finally {
+                window.hideLoading();
+                grammarBtn.disabled = false;
+                grammarBtn.innerHTML = originalBtnHtml;
+            }
+        };
+
         window.handleSendAction = () => {
             if (isGenerating) {
                 stopGeneration();
@@ -4281,11 +4403,37 @@ QUANTUM_PHYSICS_QUARKS`;
             cancelBtn.innerText = "CANCEL";
             cancelBtn.onclick = () => window.cancelEdit(div, originalContent);
             
+            const grammarBtn = document.createElement('button');
+            grammarBtn.className = "px-3 py-1 text-[10px] font-bold text-blue-400 border border-blue-400/30 hover:bg-blue-400/10 rounded uppercase transition-colors";
+            grammarBtn.innerText = "CHECK_GRAMMAR";
+            grammarBtn.onclick = async () => {
+                const text = textarea.value.trim();
+                if (!text) return;
+                const originalHtml = grammarBtn.innerHTML;
+                grammarBtn.disabled = true;
+                grammarBtn.innerHTML = `<div class="loader"></div>`;
+                try {
+                    const prompt = `You are an advanced grammar and spelling checker. Review the text. Return only corrected text or original if perfect. NO EXPLANATION.\n\nTEXT:\n${text}`;
+                    const model = document.getElementById('text-model-select').value;
+                    const corrected = await callAIWithFailover(prompt, [], model, null, []);
+                    if (corrected && corrected.trim() !== text) {
+                        textarea.value = corrected.trim();
+                        textarea.style.height = 'auto';
+                        textarea.style.height = (textarea.scrollHeight) + 'px';
+                        window.showToast("GRAMMAR_APPLIED", "success");
+                    } else {
+                        window.showToast("NO_CHANGES_NEEDED", "info");
+                    }
+                } catch (e) { window.showToast("CHECK_FAILED", "error"); }
+                finally { grammarBtn.disabled = false; grammarBtn.innerHTML = originalHtml; }
+            };
+
             const saveBtn = document.createElement('button');
             saveBtn.className = "px-4 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-500 rounded uppercase";
             saveBtn.innerText = "SAVE_AND_RESUBMIT";
             saveBtn.onclick = () => window.saveEdit(div, textarea.value);
             
+            btns.appendChild(grammarBtn);
             btns.appendChild(cancelBtn);
             btns.appendChild(saveBtn);
             editContainer.appendChild(textarea);
