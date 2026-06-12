@@ -97,6 +97,15 @@ service cloud.firestore {
       // We allow 'create' because of the hashed ID logic in updateKeyStatus
       allow create, update: if isAuthenticated();
     }
+
+    // Donated Keys Queue
+    match /donated_keys/{donationId} {
+      // Users can submit their own keys for review
+      allow create: if isAuthenticated() && request.resource.data.donorUid == request.auth.uid;
+      
+      // Admins manage the donation queue (read/list to review, delete after processing)
+      allow read, list, delete: if isAdmin();
+    }
   }
 }
 ```

@@ -873,8 +873,23 @@
                     </ul>
                 </section>
 
+                <section class="bg-blue-900/10 border border-blue-500/20 p-4 rounded-lg">
+                    <h3 class="text-blue-400 font-bold mb-2">06_CONTRIBUTE_API_RESOURCES</h3>
+                    <p class="text-gray-300 mb-4 text-xs">Support the uptime of RawCore.AI by donating API keys. Donated keys are reviewed by admins and added to the failover pool to ensure the service remains free and accessible.</p>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex gap-2">
+                            <select id="donate-provider" class="bg-gray-900 border border-gray-700 p-2 rounded text-[10px] text-white font-mono focus:outline-none focus:border-blue-500">
+                                <option value="gemini">GEMINI_API_KEY</option>
+                                <option value="groq">GROQ_API_KEY</option>
+                            </select>
+                            <input type="text" id="donate-key" placeholder="PASTE_KEY_HERE" class="flex-1 bg-gray-900 border border-gray-700 p-2 rounded text-[10px] focus:outline-none focus:border-blue-500 text-white font-mono">
+                        </div>
+                        <button onclick="window.submitDonation()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded text-[10px] font-bold transition-colors uppercase">SUBMIT_DONATION_FOR_REVIEW</button>
+                    </div>
+                </section>
+
                 <section>
-                    <h3 class="text-blue-400 font-bold mb-2">06_KEYBOARD_SHORTCUTS</h3>
+                    <h3 class="text-blue-400 font-bold mb-2">07_KEYBOARD_SHORTCUTS</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-gray-400 border border-gray-800 p-4 rounded bg-black/30">
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>NEW_CHAT</span> <span class="text-blue-400 font-bold">[ALT+N]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>TOGGLE_SIDEBAR</span> <span class="text-blue-400 font-bold">[ALT+S]</span></div>
@@ -1254,6 +1269,16 @@
                         <div class="glass p-3 rounded border border-gray-800 h-64">
                             <canvas id="errorRateChart"></canvas>
                         </div>
+                    </div>
+                </section>
+
+                <section class="pt-8 border-t border-gray-800">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-blue-400 font-bold uppercase tracking-tighter">DONATED_KEYS_QUEUE</h3>
+                        <button onclick="window.loadDonatedKeys()" class="text-[9px] border border-blue-500/50 px-2 py-1 rounded text-blue-400 hover:bg-blue-500/10 transition-colors font-bold uppercase">REFRESH_QUEUE</button>
+                    </div>
+                    <div id="admin-donated-keys" class="space-y-2 max-h-64 overflow-y-auto pr-2 chat-scroll">
+                        <div class="text-gray-500 text-[10px] italic p-4 text-center">NO_PENDING_DONATIONS...</div>
                     </div>
                 </section>
 
@@ -2061,6 +2086,13 @@
             window.renderClipboardHistory();
         };
 
+        const escapeHTML = (str) => {
+            if (!str) return "";
+            return str.replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        };
+
         window.renderClipboardHistory = () => {
             const container = document.getElementById('clipboard-history-container');
             const list = document.getElementById('clipboard-history-list');
@@ -2072,16 +2104,19 @@
             }
 
             container.classList.remove('hidden');
-            list.innerHTML = clipboardHistory.map((item, idx) => `
+            list.innerHTML = clipboardHistory.map((item, idx) => {
+                const escapedLabel = escapeHTML(item.label);
+                const escapedTextSnippet = escapeHTML(item.text.replace(/\n/g, ' '));
+                return `
                 <div class="group/clip flex items-center gap-2 p-1.5 bg-gray-900/50 border border-gray-800 rounded hover:border-blue-500/50 transition-colors cursor-pointer" 
                      onclick="window.reCopySnippet(${idx})">
                     <div class="flex-1 min-w-0">
-                        <div class="text-[7px] text-blue-500/70 font-bold truncate tracking-tighter mb-0.5">${item.label}</div>
-                        <div class="text-[9px] text-gray-400 truncate font-mono">${item.text.replace(/\n/g, ' ')}</div>
+                        <div class="text-[7px] text-blue-500/70 font-bold truncate tracking-tighter mb-0.5">${escapedLabel}</div>
+                        <div class="text-[9px] text-gray-400 truncate font-mono">${escapedTextSnippet}</div>
                     </div>
                     <svg class="w-3 h-3 text-gray-600 group-hover/clip:text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
                 </div>
-            `).join('');
+            `}).join('');
         };
 
         window.reCopySnippet = (index) => {
@@ -2749,6 +2784,7 @@
                 if (isAdmin) {
                     loadUserRegistry();
                     loadKeyMetrics();
+                    window.loadDonatedKeys();
                     setTimeout(() => window.renderAnalyticsCharts(), 2000);
                 }
             } else {
@@ -2917,6 +2953,93 @@
             } catch (e) {
                 window.showToast("UPDATE_FAILED: " + e.message, "error");
             }
+        };
+
+        window.submitDonation = async () => {
+            const provider = document.getElementById('donate-provider').value;
+            const key = document.getElementById('donate-key').value.trim();
+            if (!key) return window.showToast("KEY_CANNOT_BE_EMPTY", "error");
+            
+            window.showLoading("SUBMITTING_KEY...");
+            try {
+                await addDoc(collection(db, "donated_keys"), {
+                    provider,
+                    key,
+                    donorEmail: currentUser.email,
+                    donorUid: currentUser.uid,
+                    status: 'PENDING',
+                    submittedAt: Date.now()
+                });
+                document.getElementById('donate-key').value = "";
+                window.showToast("KEY_SUBMITTED_FOR_REVIEW", "success");
+            } catch (e) {
+                window.showToast("SUBMISSION_FAILED: " + e.message, "error");
+            } finally {
+                window.hideLoading();
+            }
+        };
+
+        window.loadDonatedKeys = async () => {
+            const container = document.getElementById('admin-donated-keys');
+            if (!container) return;
+            try {
+                const q = query(collection(db, "donated_keys"), orderBy("submittedAt", "desc"));
+                const snap = await getDocs(q);
+                let html = '';
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const snippet = d.key.substring(0, 8) + "..." + d.key.slice(-4);
+                    html += `
+                        <div class="glass p-3 rounded border border-gray-800 flex justify-between items-center text-[10px]">
+                            <div class="flex flex-col gap-1">
+                                <span class="font-bold text-blue-400">${d.provider.toUpperCase()} // ${snippet}</span>
+                                <span class="text-gray-500">FROM: ${d.donorEmail} (${new Date(d.submittedAt).toLocaleDateString()})</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="window.manageDonatedKey('${doc.id}', 'approve')" class="bg-green-600/20 text-green-400 border border-green-500/30 px-2 py-1 rounded font-bold hover:bg-green-600/40">APPROVE</button>
+                                <button onclick="window.manageDonatedKey('${doc.id}', 'reject')" class="bg-red-600/20 text-red-400 border border-red-500/30 px-2 py-1 rounded font-bold hover:bg-red-600/40">REJECT</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html || '<div class="text-gray-600 text-[10px] p-4 text-center">NO_PENDING_DONATIONS</div>';
+            } catch (e) { console.error("Donation Load Error", e); }
+        };
+
+        window.manageDonatedKey = async (docId, action) => {
+            const docRef = doc(db, "donated_keys", docId);
+            const snap = await getDoc(docRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
+
+            if (action === 'approve') {
+                window.showLoading("INTEGRATING_KEY...");
+                try {
+                    const mainRef = doc(db, "settings", "main");
+                    const mainSnap = await getDoc(mainRef);
+                    const mainData = mainSnap.data();
+                    const keyField = data.provider === 'gemini' ? 'geminiKeys' : 'groqKeys';
+                    const currentKeys = mainData[keyField] || [];
+                    
+                    if (!currentKeys.includes(data.key)) {
+                        await updateDoc(mainRef, {
+                            [keyField]: [...currentKeys, data.key]
+                        });
+                    }
+                    await deleteDoc(docRef);
+                    window.showToast("KEY_APPROVED_AND_INTEGRATED", "success");
+                    location.reload(); // Reload to refresh active keys pool
+                } catch (e) {
+                    window.showToast("APPROVAL_FAILED: " + e.message, "error");
+                }
+            } else {
+                try {
+                    await deleteDoc(docRef);
+                    window.showToast("DONATION_REJECTED", "info");
+                    window.loadDonatedKeys();
+                } catch (e) { window.showToast("REJECTION_FAILED", "error"); }
+            }
+            window.hideLoading();
         };
 
         window.deleteUserProfile = async (uid, email) => {
