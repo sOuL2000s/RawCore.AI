@@ -737,6 +737,12 @@
                                         <span id="json-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
                                     </button>
                                 </div>
+                                <div class="flex items-center justify-between p-2 hover:bg-gray-800/50 rounded transition-colors cursor-pointer" onclick="toggleStreaming()">
+                                    <span class="text-[10px] text-gray-300 font-bold uppercase">STREAM_RESPONSE</span>
+                                    <button id="streaming-toggle" class="relative inline-flex h-4 w-8 items-center rounded-full bg-blue-600 transition-colors focus:outline-none" role="switch" aria-checked="true" onclick="event.stopPropagation(); toggleStreaming();">
+                                        <span id="streaming-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-4"></span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="p-2 grid grid-cols-1 gap-1 border-t border-gray-800 bg-black/20">
@@ -783,6 +789,11 @@
                     <button onclick="checkGrammarAndSpelling()" id="grammar-check-btn" title="CHECK_GRAMMAR" aria-label="Check grammar and spelling" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0 transition-colors">
                         <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="generateDetailedPrompt()" id="prompt-gen-btn" title="OPTIMIZE_PROMPT" aria-label="Optimize prompt into detailed engineering" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0 transition-colors">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
                     </button>
                     <button onclick="startSpeech()" id="mic-btn" aria-label="Start voice input" class="p-2 hover:bg-gray-800 rounded flex items-center justify-center shrink-0">
@@ -911,6 +922,7 @@
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>FOCUS_INPUT</span> <span class="text-blue-400 font-bold">[/]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>CLOSE_PANELS</span> <span class="text-blue-400 font-bold">[ESC]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>JSON_MODE</span> <span class="text-blue-400 font-bold">[ALT+J]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>PROMPT_GEN</span> <span class="text-blue-400 font-bold">[ALT+G]</span></div>
                     </div>
                 </section>
 
@@ -1204,6 +1216,10 @@
                         <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">SHORTCUT_MAP</span>
                         <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+K</kbd>
                     </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">PROMPT_GEN</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+G</kbd>
+                    </div>
                 </div>
             </div>
             <div class="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center text-[9px] text-gray-500 font-mono uppercase tracking-tighter">
@@ -1476,7 +1492,9 @@
                     case 'p': e.preventDefault(); window.togglePanel('settings-panel'); break;
                     case 'f': e.preventDefault(); window.toggleFullscreen(); break;
                     case 'j': e.preventDefault(); window.toggleJsonMode(); break;
+                    case 't': e.preventDefault(); window.toggleStreaming(); break;
                     case 'k': e.preventDefault(); window.toggleKeyMap(); break;
+                    case 'g': e.preventDefault(); window.generateDetailedPrompt(); break;
                 }
             }
         });
@@ -1503,6 +1521,7 @@
         let isSummarizationEnabled = false;
         let isParallelMode = false;
         let isJsonMode = false;
+        let isStreamingEnabled = true;
         let currentAbortController = null;
         let isSelectionMode = false;
         let showArchived = false;
@@ -2386,6 +2405,33 @@
             if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('jsonModeEnabled', isJsonMode);
         };
 
+        window.toggleStreaming = (forceValue) => {
+            if (typeof forceValue === 'boolean') {
+                isStreamingEnabled = forceValue;
+            } else {
+                isStreamingEnabled = !isStreamingEnabled;
+            }
+            
+            const btn = document.getElementById('streaming-toggle');
+            const dot = document.getElementById('streaming-dot');
+            if (isStreamingEnabled) {
+                btn.classList.remove('bg-gray-700');
+                btn.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-4');
+                btn.setAttribute('aria-checked', 'true');
+                if (typeof forceValue !== 'boolean') window.showToast("STREAMING_ENABLED", "info");
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+                dot.classList.remove('translate-x-4');
+                dot.classList.add('translate-x-1');
+                btn.setAttribute('aria-checked', 'false');
+                if (typeof forceValue !== 'boolean') window.showToast("STREAMING_DISABLED", "info");
+            }
+            if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('streamingEnabled', isStreamingEnabled);
+        };
+
         window.resetToDefaults = async () => {
             if (!config.textModels.length || !config.sttModels.length) return;
             
@@ -2405,6 +2451,7 @@
             window.toggleSummarization(false);
             window.toggleParallelMode(false);
             window.toggleJsonMode(false);
+            window.toggleStreaming(true);
 
             // Reset parameters
             modelParams = { 
@@ -2444,7 +2491,8 @@
                         'preferences.font': "'Fira Code', monospace",
                         'preferences.summarizationEnabled': false,
                         'preferences.parallelEnabled': false,
-                        'preferences.jsonModeEnabled': false
+                        'preferences.jsonModeEnabled': false,
+                        'preferences.streamingEnabled': true
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
@@ -3365,6 +3413,13 @@
                 window.toggleJsonMode(userPrefs.jsonModeEnabled);
             }
 
+            // Load Streaming preference
+            if (userPrefs.streamingEnabled !== undefined) {
+                window.toggleStreaming(userPrefs.streamingEnabled);
+            } else {
+                window.toggleStreaming(true); // Default ON
+            }
+
             // Load theme
             if (userPrefs.theme) {
                 applyTheme(userPrefs.theme, false);
@@ -3531,7 +3586,65 @@
             }
         });
 
-        // --- GRAMMAR CHECKER LOGIC ---
+        // --- PROMPT OPTIMIZER / GRAMMAR CHECKER LOGIC ---
+        window.generateDetailedPrompt = async () => {
+            const inputEl = document.getElementById('user-input');
+            const originalText = inputEl.value.trim();
+
+            if (!originalText) {
+                window.showToast("INPUT_IS_EMPTY_NOTHING_TO_OPTIMIZE", "info");
+                return;
+            }
+
+            const genBtn = document.getElementById('prompt-gen-btn');
+            const originalBtnHtml = genBtn.innerHTML;
+            genBtn.disabled = true;
+            genBtn.innerHTML = `<div class="loader"></div>`;
+
+            window.showLoading("OPTIMIZING_PROMPT_ENGINEERING...");
+
+            try {
+                const metaPrompt = `You are an expert prompt engineer. Your task is to take the user's simple request and transform it into a comprehensive, high-quality, and detailed prompt that will get the best possible results from an LLM. 
+The detailed prompt should include:
+- Clear context and professional role
+- Specific instructions, tasks, and constraints
+- Desired output format and style
+- Encouragement for chain-of-thought or step-by-step reasoning where applicable
+
+Return ONLY the detailed prompt text. DO NOT include any introductory phrases like "Here is your prompt" or any concluding remarks.
+
+USER_REQUEST:
+"""
+${originalText}
+"""`;
+
+                const model = document.getElementById('text-model-select').value;
+                const optimizedPrompt = await callAIWithFailover(metaPrompt, [], model, null, []);
+
+                if (optimizedPrompt && optimizedPrompt.trim()) {
+                    window.showCustomModal({
+                        title: 'PROMPT_OPTIMIZATION_RESULT',
+                        message: `Original Request:\n"${originalText}"\n\nOptimized Detailed Prompt:\n\n${optimizedPrompt}`,
+                        confirmText: 'APPLY_OPTIMIZED_PROMPT',
+                        confirmClass: 'bg-blue-600 hover:bg-blue-500',
+                        onConfirm: () => {
+                            inputEl.value = optimizedPrompt.trim();
+                            adjustHeight(inputEl);
+                            window.showToast("PROMPT_OPTIMIZED", "success");
+                        }
+                    });
+                }
+
+            } catch (err) {
+                console.error("Prompt optimization failed:", err);
+                window.showToast("PROMPT_GEN_FAILED: " + err.message, "error");
+            } finally {
+                window.hideLoading();
+                genBtn.disabled = false;
+                genBtn.innerHTML = originalBtnHtml;
+            }
+        };
+
         window.checkGrammarAndSpelling = async () => {
             const inputEl = document.getElementById('user-input');
             const originalText = inputEl.value.trim();
@@ -3777,14 +3890,14 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     
                     const indicator = document.createElement('div');
                     indicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
-                    indicator.innerText = "GENERATING_RESPONSE";
+                    indicator.innerText = isStreamingEnabled ? "GENERATING_RESPONSE" : "FETCHING_RESPONSE";
                     botMsgHandles.div.appendChild(indicator);
 
                     let startTime = Date.now();
                     const onUpdate = (fullText) => {
                         const elapsedMs = Date.now() - startTime;
                         const elapsedSec = elapsedMs / 1000;
-                        const charCount = fullText.length;
+                        const charCount = (fullText || "").length;
                         const tokens = Math.ceil(charCount / 4); // Standard token heuristic
                         const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
                         
@@ -3793,7 +3906,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                             botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
                         }
 
-                        botMsgHandles.div.setAttribute('data-raw-content', fullText);
+                        botMsgHandles.div.setAttribute('data-raw-content', fullText || "");
                         botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
                         const tocBtn = botMsgHandles.div.querySelector('.bot-toc-btn');
                         if (tocBtn && (fullText.includes('# ') || fullText.includes('\n#'))) tocBtn.classList.remove('hidden');
@@ -3802,7 +3915,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         window.renderMermaid();
                     };
 
-                    const response = await callAIWithFailover(text, processedAttachments, modelValue, currentAbortController.signal, history, onUpdate);
+                    const response = await callAIWithFailover(text, processedAttachments, modelValue, currentAbortController.signal, history, isStreamingEnabled ? onUpdate : null);
+                    if (!isStreamingEnabled) onUpdate(response);
                     indicator.remove();
                     
                     const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
@@ -4566,7 +4680,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     window.hideLoading();
                     const elapsedMs = Date.now() - startTime;
                     const elapsedSec = elapsedMs / 1000;
-                    const charCount = fullText.length;
+                    const charCount = (fullText || "").length;
                     const tokens = Math.ceil(charCount / 4);
                     const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
                     
@@ -4575,7 +4689,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
                     }
 
-                    botMsgHandles.div.setAttribute('data-raw-content', fullText);
+                    botMsgHandles.div.setAttribute('data-raw-content', fullText || "");
                     botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
                     if (!userHasScrolledUp) {
                         win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
@@ -4584,7 +4698,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     window.renderMermaid();
                 };
 
-                const response = await callAIWithFailover(text, [], model, currentAbortController.signal, history, onUpdate);
+                const response = await callAIWithFailover(text, [], model, currentAbortController.signal, history, isStreamingEnabled ? onUpdate : null);
+                if (!isStreamingEnabled) onUpdate(response);
                 
                 const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'bot', content: response, timestamp: userTimestamp + 5
