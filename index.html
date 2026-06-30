@@ -743,6 +743,12 @@
                                         <span id="streaming-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-4"></span>
                                     </button>
                                 </div>
+                                <div class="flex items-center justify-between p-2 hover:bg-gray-800/50 rounded transition-colors cursor-pointer" onclick="toggleRawMode()">
+                                    <span class="text-[10px] text-gray-300 font-bold uppercase">RAW_OUTPUT</span>
+                                    <button id="raw-toggle" class="relative inline-flex h-4 w-8 items-center rounded-full bg-gray-700 transition-colors focus:outline-none" role="switch" aria-checked="false" onclick="event.stopPropagation(); toggleRawMode();">
+                                        <span id="raw-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="p-2 grid grid-cols-1 gap-1 border-t border-gray-800 bg-black/20">
@@ -1316,6 +1322,18 @@
                         <h3 class="text-blue-400 font-bold uppercase tracking-tighter">SYSTEM_DEBUG_TOOLS</h3>
                         <button onclick="window.downloadConsoleLogs()" class="text-[9px] border border-yellow-500/50 px-2 py-1 rounded text-yellow-400 hover:bg-yellow-500/10 transition-colors font-bold uppercase">DOWNLOAD_CONSOLE_LOGS (.log)</button>
                     </div>
+
+                    <!-- New real-time console log viewer -->
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="text-blue-400/80 font-bold uppercase tracking-tighter text-[10px]">REALTIME_CONSOLE_STREAM</h4>
+                        <div class="flex gap-2">
+                            <button onclick="window.copyDisplayedConsoleLogs()" class="text-[8px] border border-blue-500/50 px-2 py-1 rounded text-blue-400 hover:bg-blue-500/10 transition-colors font-bold uppercase">COPY_DISPLAYED</button>
+                            <button onclick="window.clearDisplayedConsoleLogs()" class="text-[8px] border border-red-500/50 px-2 py-1 rounded text-red-400 hover:bg-red-500/10 transition-colors font-bold uppercase">CLEAR_DISPLAY</button>
+                        </div>
+                    </div>
+                    <div id="console-log-viewer" class="w-full h-64 bg-black/40 border border-gray-800 rounded p-2 text-[10px] font-mono text-gray-300 overflow-y-auto chat-scroll whitespace-pre-wrap break-all">
+                        <span class="text-gray-500 italic">AWAITING_LOG_STREAM...</span>
+                    </div>
                 </section>
 
                 <section class="pt-8 border-t border-gray-800">
@@ -1418,16 +1436,39 @@
             return `[${timestamp}] [${type}] ${message}`;
         };
 
+        // New: Store displayed logs separately for real-time viewer
+        let currentDisplayedLogs = [];
+        const MAX_DISPLAYED_LOGS = 500; // Limit number of lines in the real-time viewer
+
+        function updateConsoleLogViewer(entry) {
+            const viewer = document.getElementById('console-log-viewer');
+            if (viewer) {
+                currentDisplayedLogs.push(entry);
+                // Keep only the last MAX_DISPLAYED_LOGS
+                if (currentDisplayedLogs.length > MAX_DISPLAYED_LOGS) {
+                    currentDisplayedLogs = currentDisplayedLogs.slice(currentDisplayedLogs.length - MAX_DISPLAYED_LOGS);
+                }
+                viewer.innerText = currentDisplayedLogs.join('\n');
+                viewer.scrollTop = viewer.scrollHeight; // Auto-scroll to bottom
+            }
+        }
+
         console.log = (...args) => {
-            logHistory.push(formatLog('LOG', args));
+            const formattedEntry = formatLog('LOG', args);
+            logHistory.push(formattedEntry);
+            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalLog.apply(console, args);
         };
         console.warn = (...args) => {
-            logHistory.push(formatLog('WARN', args));
+            const formattedEntry = formatLog('WARN', args);
+            logHistory.push(formattedEntry);
+            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalWarn.apply(console, args);
         };
         console.error = (...args) => {
-            logHistory.push(formatLog('ERROR', args));
+            const formattedEntry = formatLog('ERROR', args);
+            logHistory.push(formattedEntry);
+            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalError.apply(console, args);
         };
 
@@ -1444,6 +1485,27 @@
             a.click();
             URL.revokeObjectURL(url);
             window.showToast("CONSOLE_LOGS_EXPORTED", "success");
+        };
+
+        // New: Copy displayed logs
+        window.copyDisplayedConsoleLogs = () => {
+            if (currentDisplayedLogs.length === 0) {
+                window.showToast("NO_LOGS_TO_COPY", "info");
+                return;
+            }
+            navigator.clipboard.writeText(currentDisplayedLogs.join('\n'))
+                .then(() => window.showToast("DISPLAYED_LOGS_COPIED", "success"))
+                .catch(err => window.showToast("FAILED_TO_COPY_LOGS: " + err.message, "error"));
+        };
+
+        // New: Clear displayed logs
+        window.clearDisplayedConsoleLogs = () => {
+            currentDisplayedLogs = [];
+            const viewer = document.getElementById('console-log-viewer');
+            if (viewer) {
+                viewer.innerHTML = '<span class="text-gray-500 italic">AWAITING_LOG_STREAM...</span>';
+            }
+            window.showToast("DISPLAYED_LOGS_CLEARED", "info");
         };
 
         // Keyboard Shortcuts Handler
@@ -1521,6 +1583,7 @@
         let isSummarizationEnabled = false;
         let isParallelMode = false;
         let isJsonMode = false;
+        let isRawMode = false;
         let isStreamingEnabled = true;
         let currentAbortController = null;
         let isSelectionMode = false;
@@ -1793,6 +1856,17 @@
                     panelPrevFocus = null;
                 }
             } else {
+                // Added logic for admin panel
+                if (id === 'admin-panel') {
+                    const viewer = document.getElementById('console-log-viewer');
+                    if (viewer) {
+                        // Populate with the last MAX_DISPLAYED_LOGS from logHistory
+                        currentDisplayedLogs = logHistory.slice(Math.max(0, logHistory.length - MAX_DISPLAYED_LOGS));
+                        viewer.innerText = currentDisplayedLogs.join('\n') || '<span class="text-gray-500 italic">AWAITING_LOG_STREAM...</span>';
+                        viewer.scrollTop = viewer.scrollHeight; // Scroll to bottom
+                    }
+                }
+
                 panelPrevFocus = document.activeElement;
                 el.classList.remove('hidden');
                 const focusables = Array.from(el.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter(f => !f.disabled && f.offsetWidth > 0);
@@ -2432,6 +2506,37 @@
             if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('streamingEnabled', isStreamingEnabled);
         };
 
+        window.toggleRawMode = (forceValue) => {
+            if (typeof forceValue === 'boolean') {
+                isRawMode = forceValue;
+            } else {
+                isRawMode = !isRawMode;
+            }
+            
+            const btn = document.getElementById('raw-toggle');
+            const dot = document.getElementById('raw-dot');
+            if (isRawMode) {
+                btn.classList.remove('bg-gray-700');
+                btn.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-4');
+                btn.setAttribute('aria-checked', 'true');
+                if (typeof forceValue !== 'boolean') window.showToast("RAW_OUTPUT_MODE_ENABLED", "info");
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+                dot.classList.remove('translate-x-4');
+                dot.classList.add('translate-x-1');
+                btn.setAttribute('aria-checked', 'false');
+                if (typeof forceValue !== 'boolean') window.showToast("RAW_OUTPUT_MODE_DISABLED", "info");
+            }
+            if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('rawModeEnabled', isRawMode);
+
+            if (currentChatId) {
+                loadSpecificChat(currentChatId);
+            }
+        };
+
         window.resetToDefaults = async () => {
             if (!config.textModels.length || !config.sttModels.length) return;
             
@@ -2452,6 +2557,7 @@
             window.toggleParallelMode(false);
             window.toggleJsonMode(false);
             window.toggleStreaming(true);
+            window.toggleRawMode(false);
 
             // Reset parameters
             modelParams = { 
@@ -2492,6 +2598,7 @@
                         'preferences.summarizationEnabled': false,
                         'preferences.parallelEnabled': false,
                         'preferences.jsonModeEnabled': false,
+                        'preferences.rawModeEnabled': false,
                         'preferences.streamingEnabled': true
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
@@ -2504,6 +2611,7 @@
                     userPrefs.summarizationEnabled = false;
                     userPrefs.parallelEnabled = false;
                     userPrefs.jsonModeEnabled = false;
+                    userPrefs.rawModeEnabled = false;
                     window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
                 } catch (e) {
                     console.error("Reset failed:", e);
@@ -3420,6 +3528,13 @@
                 window.toggleStreaming(true); // Default ON
             }
 
+            // Load raw mode preference
+            if (userPrefs.rawModeEnabled !== undefined) {
+                window.toggleRawMode(userPrefs.rawModeEnabled);
+            } else {
+                window.toggleRawMode(false); // Default OFF
+            }
+
             // Load theme
             if (userPrefs.theme) {
                 applyTheme(userPrefs.theme, false);
@@ -3907,7 +4022,13 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         }
 
                         botMsgHandles.div.setAttribute('data-raw-content', fullText || "");
-                        botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                        if (isRawMode) {
+                            const pre = botMsgHandles.rawContent.querySelector('pre');
+                            if (pre) pre.innerText = fullText || "";
+                            else botMsgHandles.rawContent.innerText = fullText || "";
+                        } else {
+                            botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                        }
                         const tocBtn = botMsgHandles.div.querySelector('.bot-toc-btn');
                         if (tocBtn && (fullText.includes('# ') || fullText.includes('\n#'))) tocBtn.classList.remove('hidden');
                         if (!userHasScrolledUp) win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
@@ -4342,10 +4463,16 @@ QUANTUM_PHYSICS_QUARKS`;
             metaDiv.appendChild(metaRight);
 
             const rawContent = document.createElement('div');
-            rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto";
-            
-            // Apply markdown parsing to both user and bot messages for consistent communication experience
-            rawContent.innerHTML = marked.parse(content || "");
+            rawContent.dataset.type = 'content-display';
+            if (role === 'bot' && isRawMode) {
+                const preEl = document.createElement('pre');
+                preEl.className = "p-2 bg-black/40 border border-gray-700 rounded text-[13px] md:text-sm leading-relaxed whitespace-pre-wrap break-all font-mono chat-scroll";
+                preEl.innerText = content || "";
+                rawContent.appendChild(preEl);
+            } else {
+                rawContent.className = "markdown-body text-[13px] md:text-sm leading-relaxed break-words max-w-full overflow-x-auto";
+                rawContent.innerHTML = marked.parse(content || "");
+            }
             
             const actionsDiv = document.createElement('div');
             actionsDiv.className = "flex items-center gap-4 mt-2 relative transition-opacity duration-200";
@@ -4690,7 +4817,15 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     }
 
                     botMsgHandles.div.setAttribute('data-raw-content', fullText || "");
-                    botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                    
+                    if (isRawMode) {
+                        const pre = botMsgHandles.rawContent.querySelector('pre');
+                        if (pre) pre.innerText = fullText || "";
+                        else botMsgHandles.rawContent.innerText = fullText || "";
+                    } else {
+                        botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                    }
+
                     if (!userHasScrolledUp) {
                         win.scrollTo({ top: win.scrollHeight, behavior: 'auto' });
                     }
