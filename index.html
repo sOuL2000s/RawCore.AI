@@ -5362,17 +5362,36 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             if (menu) menu.classList.add('hidden');
             if (arrow) arrow.style.transform = '';
 
-            const messages = Array.from(document.querySelectorAll('.markdown-body'))
-                                  .map(m => m.innerText).join('\n\n---\n\n');
+            let exportedContent = '';
+
+            if (type === 'md') {
+                exportedContent = Array.from(document.querySelectorAll('#chat-window > div[data-role]'))
+                    .map(msgDiv => {
+                        const role = msgDiv.dataset.role;
+                        const rawContent = msgDiv.getAttribute('data-raw-content') || '';
+                        const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+                        return `### ${role.toUpperCase()} [${timestamp}]\n\n${rawContent}`;
+                    })
+                    .join('\n\n---\n\n');
+            } else { // txt and pdf will use innerText for rendered, human-readable content
+                exportedContent = Array.from(document.querySelectorAll('#chat-window > div[data-role]'))
+                    .map(msgDiv => {
+                        const role = msgDiv.dataset.role;
+                        const innerText = (msgDiv.querySelector('.markdown-body') || msgDiv.querySelector('pre') || {innerText: ''}).innerText;
+                        const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+                        return `${role.toUpperCase()} [${timestamp}]:\n${innerText}`;
+                    })
+                    .join('\n\n---\n\n');
+            }
             
-            if (!messages || messages.trim() === "") {
+            if (!exportedContent || exportedContent.trim() === "") {
                 window.showToast("NO_MESSAGES_TO_EXPORT", "error");
                 return;
             }
 
             if (type === 'clipboard') {
-                navigator.clipboard.writeText(messages);
-                window.addToClipboardHistory(messages, "FULL_CHAT_EXPORT");
+                navigator.clipboard.writeText(exportedContent);
+                window.addToClipboardHistory(exportedContent, "FULL_CHAT_EXPORT");
                 window.showToast("FULL_CHAT_COPIED", "success");
                 return;
             }
