@@ -760,6 +760,12 @@
                                         <span id="raw-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
                                     </button>
                                 </div>
+                                <div class="flex items-center justify-between p-2 hover:bg-gray-800/50 rounded transition-colors cursor-pointer" onclick="toggleBhagawanUvaach()">
+                                    <span class="text-[10px] text-yellow-300 font-bold uppercase">BHAGAWAN_UVAACH</span>
+                                    <button id="bhagawan-uvaach-toggle" class="relative inline-flex h-4 w-8 items-center rounded-full bg-gray-700 transition-colors focus:outline-none" role="switch" aria-checked="false" onclick="event.stopPropagation(); toggleBhagawanUvaach();">
+                                        <span id="bhagawan-uvaach-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="p-2 grid grid-cols-1 gap-1 border-t border-gray-800 bg-black/20">
@@ -958,6 +964,7 @@
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>JSON_MODE</span> <span class="text-blue-400 font-bold">[ALT+J]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>PROMPT_GEN</span> <span class="text-blue-400 font-bold">[ALT+G]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>INPUT_TO_FILE</span> <span class="text-blue-400 font-bold">[ALT+I]</span></div>
+                    <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>BHAGAWAN_UVAACH</span> <span class="text-blue-400 font-bold">[ALT+U]</span></div>
                     </div>
                 </section>
 
@@ -1658,6 +1665,7 @@
                     case 'o': e.preventDefault(); window.togglePanel('about-panel'); break;
                     case 'g': e.preventDefault(); window.generateDetailedPrompt(); break;
                     case 'i': e.preventDefault(); window.convertInputToFile(); break;
+                case 'u': e.preventDefault(); window.toggleBhagawanUvaach(); break; // New shortcut for Bhagawan Uvaach
                 }
                 return; // Crucial: ensure altKey shortcuts don't fall through to global capture
             }
@@ -1729,6 +1737,8 @@
         let isJsonMode = false;
         let isRawMode = false;
         let isStreamingEnabled = true;
+        let isBhagawanUvaachMode = false; // New state for Bhagawan Uvaach mode
+        let bhagawanUvaachText = ""; // To store the content of bhagawad geeta knowledge.txt
         let currentAbortController = null;
         let isSelectionMode = false;
         let showArchived = false;
@@ -2681,6 +2691,38 @@
             }
         };
 
+        window.toggleBhagawanUvaach = async (forceValue) => {
+            if (typeof forceValue === 'boolean') {
+                isBhagawanUvaachMode = forceValue;
+            } else {
+                isBhagawanUvaachMode = !isBhagawanUvaachMode;
+            }
+            
+            const btn = document.getElementById('bhagawan-uvaach-toggle');
+            const dot = document.getElementById('bhagawan-uvaach-dot');
+            if (isBhagawanUvaachMode) {
+                if (!bhagawanUvaachText) {
+                    window.showToast("BHAGAWAD_GEETA_TEXT_NOT_LOADED_YET", "error");
+                    isBhagawanUvaachMode = false; // Revert toggle if text not loaded
+                    return;
+                }
+                btn.classList.remove('bg-gray-700');
+                btn.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-4');
+                btn.setAttribute('aria-checked', 'true');
+                if (typeof forceValue !== 'boolean') window.showToast("BHAGAWAN_UVAACH_MODE_ENABLED", "info");
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+                dot.classList.remove('translate-x-4');
+                dot.classList.add('translate-x-1');
+                btn.setAttribute('aria-checked', 'false');
+                if (typeof forceValue !== 'boolean') window.showToast("BHAGAWAN_UVAACH_MODE_DISABLED", "info");
+            }
+            if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('bhagawanUvaachMode', isBhagawanUvaachMode);
+        };
+
         window.resetToDefaults = async () => {
             if (!config.textModels.length || !config.sttModels.length) return;
             
@@ -2743,7 +2785,8 @@
                         'preferences.parallelEnabled': false,
                         'preferences.jsonModeEnabled': false,
                         'preferences.rawModeEnabled': false,
-                        'preferences.streamingEnabled': true
+                        'preferences.streamingEnabled': true,
+                        'preferences.bhagawanUvaachMode': false // Reset Bhagawan Uvaach mode
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
@@ -2756,6 +2799,7 @@
                     userPrefs.parallelEnabled = false;
                     userPrefs.jsonModeEnabled = false;
                     userPrefs.rawModeEnabled = false;
+                    userPrefs.bhagawanUvaachMode = false; // Reset Bhagawan Uvaach mode
                     window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
                 } catch (e) {
                     console.error("Reset failed:", e);
@@ -3147,6 +3191,24 @@
                 setTimeout(() => splash.classList.add('hidden'), 500);
             }, 800);
         });
+
+        // Load Bhagawad Gita knowledge text
+        async function loadBhagawanUvaachText() {
+            try {
+                const response = await fetch('./bhagawad_geeta_knowledge.txt'); // Assuming file is in root
+                if (response.ok) {
+                    bhagawanUvaachText = await response.text();
+                    console.log("BHAGAWAD_GEETA_TEXT_LOADED_SUCCESSFULLY");
+                } else {
+                    console.error("FAILED_TO_LOAD_BHAGAWAD_GEETA_TEXT:", response.status, response.statusText);
+                    window.showToast("FAILED_TO_LOAD_BHAGAWAD_GEETA_TEXT", "error");
+                }
+            } catch (error) {
+                console.error("ERROR_FETCHING_BHAGAWAD_GEETA_TEXT:", error);
+                window.showToast("ERROR_FETCHING_BHAGAWAD_GEETA_TEXT", "error");
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadBhagawanUvaachText);
 
         // --- ADMIN FUNCTIONS ---
         async function loadConfig() {
@@ -3677,6 +3739,13 @@
                 window.toggleRawMode(userPrefs.rawModeEnabled);
             } else {
                 window.toggleRawMode(false); // Default OFF
+            }
+            
+            // Load Bhagawan Uvaach mode preference
+            if (userPrefs.bhagawanUvaachMode !== undefined) {
+                window.toggleBhagawanUvaach(userPrefs.bhagawanUvaachMode);
+            } else {
+                window.toggleBhagawanUvaach(false); // Default OFF
             }
 
             // Load theme
@@ -4362,9 +4431,28 @@ QUANTUM_PHYSICS_QUARKS`;
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${key}${isStreaming ? '&alt=sse' : ''}`;
             
             let contents = [];
-            const rawSystemPrompt = document.getElementById('active-system-prompt')?.value.trim();
-            const systemPromptContent = processPromptVariables(rawSystemPrompt, prompt);
-            const systemInstruction = systemPromptContent ? { parts: [{ text: systemPromptContent }] } : null;
+            let effectiveSystemInstruction = null;
+
+            if (isBhagawanUvaachMode && bhagawanUvaachText) {
+                const bhagawanPrompt = `You are Bhagawan, a spiritual guide answering life's problems and doubts based *solely* on the wisdom of the Bhagavad Gita.
+Carefully analyze the user's question and consult the provided Bhagavad Gita teachings.
+Formulate your answer by extracting the *underlying meaning* and *applying it to the user's context*, rather than just literal translations.
+ALWAYS reference the specific shloka(s) you are drawing wisdom from, including their chapter and verse (e.g., "Bhagavad Gita 2.47").
+If the Gita does not directly address the topic, use its principles to provide a relevant perspective.
+Speak in a compassionate, insightful, and authoritative tone.
+
+--- Bhagavad Gita Teachings ---
+${bhagawanUvaachText}
+------------------------------
+`;
+                effectiveSystemInstruction = { parts: [{ text: bhagawanPrompt }] };
+            } else {
+                const rawSystemPrompt = document.getElementById('active-system-prompt')?.value.trim();
+                const systemPromptContent = processPromptVariables(rawSystemPrompt, prompt);
+                if (systemPromptContent) {
+                    effectiveSystemInstruction = { parts: [{ text: systemPromptContent }] };
+                }
+            }
 
             if (history.length > 0) {
                 contents = history.map(h => ({
@@ -4407,7 +4495,7 @@ QUANTUM_PHYSICS_QUARKS`;
                 contents: contents,
                 generationConfig: generationConfig
             };
-            if (systemInstruction) body.system_instruction = systemInstruction;
+            if (effectiveSystemInstruction) body.system_instruction = effectiveSystemInstruction; // Use effective system instruction
 
             // Capture the payload before sending
             window.currentPayload = JSON.stringify(body, null, 2);
@@ -4467,10 +4555,28 @@ QUANTUM_PHYSICS_QUARKS`;
             }
 
             let messages = [];
-            const rawSystemPrompt = document.getElementById('active-system-prompt')?.value.trim();
-            const systemPromptContent = processPromptVariables(rawSystemPrompt, prompt);
-            if (systemPromptContent) {
-                messages.push({ role: "system", content: systemPromptContent });
+            
+            if (isBhagawanUvaachMode && bhagawanUvaachText) {
+                messages.push({ 
+                    role: "system", 
+                    content: `You are Bhagawan, a spiritual guide answering life's problems and doubts based *solely* on the wisdom of the Bhagavad Gita.
+Carefully analyze the user's question and consult the provided Bhagavad Gita teachings.
+Formulate your answer by extracting the *underlying meaning* and *applying it to the user's context*, rather than just literal translations.
+ALWAYS reference the specific shloka(s) you are drawing wisdom from, including their chapter and verse (e.g., "Bhagavad Gita 2.47").
+If the Gita does not directly address the topic, use its principles to provide a relevant perspective.
+Speak in a compassionate, insightful, and authoritative tone.
+
+--- Bhagavad Gita Teachings ---
+${bhagawanUvaachText}
+------------------------------
+`
+                });
+            } else {
+                const rawSystemPrompt = document.getElementById('active-system-prompt')?.value.trim();
+                const systemPromptContent = processPromptVariables(rawSystemPrompt, prompt);
+                if (systemPromptContent) {
+                    messages.push({ role: "system", content: systemPromptContent });
+                }
             }
 
             if (history.length > 0) {
