@@ -4567,7 +4567,7 @@ QUANTUM_PHYSICS_QUARKS`;
             if (msgId) div.dataset.msgId = msgId;
             if (isExcluded) div.classList.add('opacity-40', 'grayscale-[0.5]');
             const marginClass = role === 'user' ? 'ml-4 sm:ml-8 md:ml-12 lg:ml-20' : 'mr-4 sm:mr-8 md:mr-12 lg:mr-20';
-            div.className = `p-2 md:p-3 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col overflow-hidden group/msg transition-all duration-200`;
+            div.className = `p-2 md:p-3 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col group/msg transition-all duration-200`;
             
             const metaDiv = document.createElement('div');
             metaDiv.className = "flex justify-between items-center mb-1 text-[9px] font-mono tracking-tighter opacity-40 group-hover/msg:opacity-100 transition-opacity";
