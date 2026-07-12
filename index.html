@@ -441,13 +441,15 @@
                 display: block !important;
                 overflow: visible !important;
             }
-            .markdown-body {
+            /* Common markdown styles for on-screen and PDF export */
+            .markdown-body, .markdown-body-pdf { 
                 color: #000 !important;
                 font-family: 'Fira Code', monospace !important;
                 font-size: 10pt !important;
                 line-height: 1.5 !important;
             }
-            .markdown-body pre {
+            /* Specific element styles within markdown containers */
+            .markdown-body pre, .markdown-body-pdf pre {
                 background: #f9f9f9 !important;
                 color: #000 !important;
                 border: 1px solid #eee !important;
@@ -458,14 +460,15 @@
                 margin: 10pt 0 !important;
                 page-break-inside: avoid !important;
             }
-            .markdown-body code {
+            .markdown-body code, .markdown-body-pdf code {
                 background: #f4f4f4 !important;
                 color: #d11141 !important;
                 font-size: 8.5pt !important;
                 padding: 1pt 3pt !important;
             }
-            .markdown-body table { border: 1px solid #eee !important; width: 100% !important; }
-            .markdown-body th, .markdown-body td { border: 1px solid #eee !important; color: #000 !important; background: transparent !important; }
+            .markdown-body table, .markdown-body-pdf table { border: 1px solid #eee !important; width: 100% !important; }
+            .markdown-body th, .markdown-body td, .markdown-body-pdf th, .markdown-body-pdf td { border: 1px solid #eee !important; color: #000 !important; background: transparent !important; }
+            /* Chat message specific wrappers */
             .bg-gray-800, .bg-gray-900 {
                 background: white !important;
                 border: none !important;
@@ -4715,19 +4718,71 @@ ${bhagawanUvaachText}
             const actionsDiv = document.createElement('div');
             actionsDiv.className = "flex items-center gap-4 mt-2 relative transition-opacity duration-200";
 
-            // Mobile-specific Menu
+            // **FIXED PROBLEM 2** - Inside your appendMessage function
+            const mobileMenuBtnContainer = document.createElement('div');
+            mobileMenuBtnContainer.className = 'relative'; // IMPORTANT: This parent MUST have 'position: relative'
+
             const mobileMenuBtn = document.createElement('button');
-            mobileMenuBtn.className = "md:hidden msg-menu-toggle flex items-center gap-1 text-[10px] text-gray-400 border border-gray-800 px-2 py-1 rounded hover:text-white hover:border-blue-500 transition-all focus:outline-none";
-            mobileMenuBtn.innerHTML = `<span>MORE</span><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg>`;
+            mobileMenuBtn.className = 'msg-mobile-btn p-1 rounded-full text-gray-500 hover:bg-gray-700 transition-colors';
+            mobileMenuBtn.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path></svg>';
+            mobileMenuBtn.setAttribute('aria-label', 'Message actions');
+            mobileMenuBtn.id = 'msg-btn-' + (msgId || Math.random().toString(36).substr(2, 9)); // Ensure button has an ID
 
             const mobileMenu = document.createElement('div');
-            mobileMenu.className = "hidden absolute bottom-full left-0 mb-2 w-44 glass rounded-lg border border-gray-700 shadow-2xl z-20 flex flex-col divide-y divide-gray-800 overflow-hidden msg-mobile-menu";
+            // Ensure this class list is correct. 'relative' isn't needed here for the menu itself
+            // but for its container. Let's make sure z-index is high enough.
+            mobileMenu.className = 'msg-mobile-menu absolute bg-gray-800 border border-gray-700 rounded shadow-2xl hidden flex-col w-40 overflow-hidden'; 
+            mobileMenu.setAttribute('role', 'menu');
+            mobileMenu.setAttribute('aria-hidden', 'true');
+            mobileMenu.setAttribute('aria-labelledby', mobileMenuBtn.id); // Link to button ID
             
             mobileMenuBtn.onclick = (e) => {
                 e.stopPropagation();
-                const wasHidden = mobileMenu.classList.contains('hidden');
-                document.querySelectorAll('.msg-mobile-menu').forEach(m => m.classList.add('hidden'));
-                if (wasHidden) mobileMenu.classList.remove('hidden');
+                const isOpen = !mobileMenu.classList.contains('hidden');
+                
+                // Close all other open dropdowns first, and reset their position
+                document.querySelectorAll('.msg-mobile-menu').forEach(menu => {
+                    if (menu !== mobileMenu && !menu.classList.contains('hidden')) {
+                        menu.classList.add('hidden');
+                        menu.setAttribute('aria-hidden', 'true');
+                        // CRITICAL CHANGE 2: Reset position and clear inline styles for ALL other menus
+                        menu.style.position = 'absolute'; 
+                        menu.style.top = ''; menu.style.bottom = ''; menu.style.left = ''; menu.style.right = ''; 
+                        menu.style.maxHeight = ''; menu.style.overflowY = '';
+                        menu.style.zIndex = ''; // Also reset z-index
+                    }
+                });
+
+                if (isOpen) {
+                    mobileMenu.classList.add('hidden');
+                    mobileMenu.setAttribute('aria-hidden', 'true');
+                    // CRITICAL CHANGE 3: Reset position and clear inline styles when closing
+                    mobileMenu.style.position = 'absolute'; 
+                    mobileMenu.style.top = ''; mobileMenu.style.bottom = ''; mobileMenu.style.left = ''; mobileMenu.style.right = ''; 
+                    mobileMenu.style.maxHeight = ''; mobileMenu.style.overflowY = '';
+                    mobileMenu.style.zIndex = ''; // Also reset z-index
+                } else {
+                    mobileMenu.classList.remove('hidden'); // This makes it visible initially
+                    mobileMenu.style.zIndex = '95'; // Add z-index when opening
+                    window.positionDropdown(mobileMenu, mobileMenuBtn); 
+                    mobileMenu.setAttribute('aria-hidden', 'false');
+
+                    const clickOutsideHandler = (event) => {
+                        if (!mobileMenu.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
+                            mobileMenu.classList.add('hidden');
+                            mobileMenu.setAttribute('aria-hidden', 'true');
+                            // CRITICAL CHANGE 5: Reset position and clear inline styles on click-outside close
+                            mobileMenu.style.position = 'absolute'; 
+                            mobileMenu.style.top = ''; mobileMenu.style.bottom = ''; mobileMenu.style.left = ''; mobileMenu.style.right = ''; 
+                            mobileMenu.style.maxHeight = ''; mobileMenu.style.overflowY = '';
+                            mobileMenu.style.zIndex = ''; // Also reset z-index
+                            document.removeEventListener('click', clickOutsideHandler);
+                        }
+                    };
+                    setTimeout(() => {
+                        document.addEventListener('click', clickOutsideHandler);
+                    }, 10);
+                }
             };
 
             const desktopActions = document.createElement('div');
@@ -4754,8 +4809,9 @@ ${bhagawanUvaachText}
 
             // Copy button is visible on both for convenience
             actionsDiv.appendChild(copyBtn);
-            actionsDiv.appendChild(mobileMenuBtn);
-            actionsDiv.appendChild(mobileMenu);
+            mobileMenuBtnContainer.appendChild(mobileMenuBtn); // Append button to its container
+            mobileMenuBtnContainer.appendChild(mobileMenu);   // Append menu to its container
+            actionsDiv.appendChild(mobileMenuBtnContainer);   // Append the container to actionsDiv
             actionsDiv.appendChild(desktopActions);
 
             if (role === 'user') {
@@ -5472,6 +5528,105 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         // --- UTILS ---
         let panelPrevFocus = null;
         
+        // **FIXED PROBLEM 2** - Corrected utility function to position dropdown menus reliably
+        window.positionDropdown = (dropdownEl, triggerEl) => {
+            // Clear any previous inline positioning styles to prevent conflicts
+            dropdownEl.style.top = '';
+            dropdownEl.style.bottom = '';
+            dropdownEl.style.left = '';
+            dropdownEl.style.right = '';
+            dropdownEl.style.maxHeight = ''; // Clear any previous max-height adjustments
+            dropdownEl.style.overflowY = ''; // Clear overflow-y
+
+            // Store original styles to restore them later
+            const originalVisibility = dropdownEl.style.visibility;
+            const originalDisplay = dropdownEl.style.display;
+            
+            // Ensure dropdown is temporarily laid out (display: block) and invisible (visibility: hidden)
+            // to get its accurate dimensions without causing a flash.
+            // We assume the 'hidden' class has ALREADY been removed by the caller (onclick handler).
+            dropdownEl.style.visibility = 'hidden';
+            dropdownEl.style.display = 'block'; // Ensure it's laid out
+            
+            const dropdownHeight = dropdownEl.offsetHeight;
+            const dropdownWidth = dropdownEl.offsetWidth;
+            
+            // Restore original styles before positioning
+            dropdownEl.style.visibility = originalVisibility;
+            dropdownEl.style.display = originalDisplay;
+
+
+            const buffer = 8; // Pixels of spacing around the dropdown
+
+            const triggerRect = triggerEl.getBoundingClientRect(); // Viewport coordinates for trigger
+
+            const spaceBelowInViewport = window.innerHeight - triggerRect.bottom;
+            const spaceAboveInViewport = triggerRect.top;
+            const spaceRightInViewport = window.innerWidth - triggerRect.right;
+            const spaceLeftInViewport = triggerRect.left;
+
+            // --- 1. Vertical Positioning (Top/Bottom) ---
+            if (spaceBelowInViewport >= dropdownHeight + buffer) {
+                // Enough space below: Position dropdown below the trigger
+                dropdownEl.style.top = `${triggerRect.bottom + buffer}px`;
+                dropdownEl.style.bottom = 'auto';
+            } else if (spaceAboveInViewport >= dropdownHeight + buffer) {
+                // Enough space above: Position dropdown above the trigger
+                dropdownEl.style.bottom = `${window.innerHeight - triggerRect.top + buffer}px`; // Bottom relative to viewport bottom
+                dropdownEl.style.top = 'auto';
+            } else {
+                // Not enough space above or below, try to maximize available space
+                let availableHeightBelow = Math.max(0, spaceBelowInViewport - buffer);
+                let availableHeightAbove = Math.max(0, spaceAboveInViewport - buffer);
+
+                if (availableHeightBelow > availableHeightAbove && availableHeightBelow > 0) {
+                    dropdownEl.style.top = `${triggerRect.bottom + buffer}px`;
+                    dropdownEl.style.bottom = 'auto';
+                    dropdownEl.style.maxHeight = `${availableHeightBelow}px`;
+                } else if (availableHeightAbove > 0) {
+                    dropdownEl.style.bottom = `${window.innerHeight - triggerRect.top + buffer}px`;
+                    dropdownEl.style.top = 'auto';
+                    dropdownEl.style.maxHeight = `${availableHeightAbove}px`;
+                } else {
+                    // Fallback: if even constrained, there's no reasonable space. Position below with minimal height.
+                    dropdownEl.style.top = `${triggerRect.bottom + buffer}px`;
+                    dropdownEl.style.bottom = 'auto';
+                    dropdownEl.style.maxHeight = '0px'; // Effectively hide if no space
+                }
+                dropdownEl.style.overflowY = 'auto'; // Make scrollable if height is constrained
+            }
+
+            // --- 2. Horizontal Positioning (Left/Right) ---
+            // Default: align left edge of dropdown with left edge of trigger button
+            let targetLeft = triggerRect.left;
+            
+            // Check if dropdown would go off-screen to the right
+            if (targetLeft + dropdownWidth + buffer > window.innerWidth && spaceLeftInViewport >= dropdownWidth + buffer) {
+                // Not enough space to the right, but enough to the left. 
+                // Align dropdown's right edge with the trigger's right edge.
+                dropdownEl.style.left = `${triggerRect.right - dropdownWidth}px`;
+                dropdownEl.style.right = 'auto';
+            } else {
+                // Enough space to the right, or not enough space to the left. Align left.
+                // Ensure it doesn't go off screen if trigger is very close to left edge
+                dropdownEl.style.left = `${Math.max(buffer, targetLeft)}px`;
+                dropdownEl.style.right = 'auto';
+            }
+
+            dropdownEl.style.position = 'fixed'; 
+        };
+
+        function performDownload(content, extension, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `rawcore_export_${Date.now()}.${extension}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            window.showToast("CHAT_EXPORTED", "success");
+        }
+
         window.exportChat = (type) => {
             // Close menu
             const menu = document.getElementById('export-menu');
@@ -5479,42 +5634,41 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             if (menu) menu.classList.add('hidden');
             if (arrow) arrow.style.transform = '';
 
-            let exportedContent = '';
+            const chatMessages = Array.from(document.querySelectorAll('#chat-window > div[data-role]'));
 
-            if (type === 'md') {
-                exportedContent = Array.from(document.querySelectorAll('#chat-window > div[data-role]'))
-                    .map(msgDiv => {
-                        const role = msgDiv.dataset.role;
-                        const rawContent = msgDiv.getAttribute('data-raw-content') || '';
-                        const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
-                        return `### ${role.toUpperCase()} [${timestamp}]\n\n${rawContent}`;
-                    })
-                    .join('\n\n---\n\n');
-            } else { // txt and pdf will use innerText for rendered, human-readable content
-                exportedContent = Array.from(document.querySelectorAll('#chat-window > div[data-role]'))
-                    .map(msgDiv => {
-                        const role = msgDiv.dataset.role;
-                        const innerText = (msgDiv.querySelector('.markdown-body') || msgDiv.querySelector('pre') || {innerText: ''}).innerText;
-                        const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
-                        return `${role.toUpperCase()} [${timestamp}]:\n${innerText}`;
-                    })
-                    .join('\n\n---\n\n');
-            }
-            
-            if (!exportedContent || exportedContent.trim() === "") {
+            if (chatMessages.length === 0) {
                 window.showToast("NO_MESSAGES_TO_EXPORT", "error");
                 return;
             }
 
-            if (type === 'clipboard') {
-                navigator.clipboard.writeText(exportedContent);
-                window.addToClipboardHistory(exportedContent, "FULL_CHAT_EXPORT");
-                window.showToast("FULL_CHAT_COPIED", "success");
-                return;
-            }
+            // Collect raw markdown content for .md, clipboard, and PDF HTML generation
+            const rawMarkdownParts = chatMessages.map(msgDiv => {
+                const role = msgDiv.dataset.role;
+                const rawContent = msgDiv.getAttribute('data-raw-content') || '';
+                const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+                return `### ${role.toUpperCase()} [${timestamp}]\n\n${rawContent}`;
+            });
+            const rawMarkdownContent = rawMarkdownParts.join('\n\n---\n\n');
 
-            if (type === 'pdf') {
-                const originalWindow = document.getElementById('chat-window');
+            // Collect plain text content (rendered) for .txt
+            const plainTextParts = chatMessages.map(msgDiv => {
+                const role = msgDiv.dataset.role;
+                // For plain text, take the rendered innerText
+                const innerText = (msgDiv.querySelector('.markdown-body') || msgDiv.querySelector('pre') || {innerText: ''}).innerText;
+                const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+                return `${role.toUpperCase()} [${timestamp}]:\n${innerText}`;
+            });
+            const plainTextContent = plainTextParts.join('\n\n---\n\n');
+            
+            if (type === 'md') {
+                performDownload(rawMarkdownContent, 'md', 'text/markdown');
+            } else if (type === 'txt') {
+                performDownload(plainTextContent, 'txt', 'text/plain');
+            } else if (type === 'clipboard') {
+                navigator.clipboard.writeText(rawMarkdownContent);
+                window.addToClipboardHistory(rawMarkdownContent, "FULL_CHAT_EXPORT");
+                window.showToast("FULL_CHAT_COPIED", "success");
+            } else if (type === 'pdf') {
                 const container = document.createElement('div');
                 container.style.padding = '40px';
                 container.style.background = 'white';
@@ -5536,79 +5690,29 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 `;
                 container.appendChild(header);
 
-                const messagesClone = originalWindow.cloneNode(true);
-                messagesClone.style.display = 'block';
-                messagesClone.style.padding = '0';
-                
-                messagesClone.querySelectorAll('.code-copy-btn, button, .flex.gap-4.mt-2').forEach(el => el.remove());
-                
-                messagesClone.querySelectorAll('.bg-gray-800, .bg-gray-900').forEach(msg => {
-                    const isUser = msg.classList.contains('bg-gray-800');
-                    msg.style.backgroundColor = 'transparent';
-                    msg.style.border = 'none';
-                    msg.style.borderBottom = '1px solid #eee';
-                    msg.style.margin = '0';
-                    msg.style.padding = '20px 0';
-                    msg.style.pageBreakInside = 'avoid';
-                    msg.style.width = '100%';
-                    msg.style.maxWidth = '100%';
-                    msg.style.display = 'block';
-                    msg.className = '';
-
-                    const roleLabel = document.createElement('div');
-                    roleLabel.style.fontSize = '7pt';
-                    roleLabel.style.fontWeight = 'bold';
-                    roleLabel.style.marginBottom = '10px';
-                    roleLabel.style.color = isUser ? '#888' : '#3b82f6';
-                    roleLabel.style.borderBottom = '1px dashed #eee';
-                    roleLabel.style.paddingBottom = '4px';
-                    roleLabel.innerText = isUser ? '>>> USER_INPUT' : '>>> RAWCORE_RESPONSE';
-                    msg.prepend(roleLabel);
-                });
-
-                messagesClone.querySelectorAll('.markdown-body').forEach(mb => {
-                    mb.style.color = '#000';
-                    mb.style.fontSize = '10pt';
-                    mb.style.lineHeight = '1.4';
+                // Main chat content (dynamically rendered from raw markdown)
+                const chatContentDiv = document.createElement('div');
+                chatContentDiv.innerHTML = chatMessages.map(msgDiv => {
+                    const role = msgDiv.dataset.role;
+                    const rawContent = msgDiv.getAttribute('data-raw-content') || '';
+                    const timestamp = msgDiv.dataset.timestamp ? new Date(parseInt(msgDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+                    const renderedHtml = marked.parse(rawContent); // Render raw markdown to HTML
                     
-                    mb.querySelectorAll('pre').forEach(pre => {
-                        pre.style.background = '#f9f9f9';
-                        pre.style.color = '#000';
-                        pre.style.padding = '10pt';
-                        pre.style.border = '1px solid #eee';
-                        pre.style.borderRadius = '0';
-                        pre.style.fontSize = '8.5pt';
-                        pre.style.margin = '10pt 0';
-                        pre.style.whiteSpace = 'pre-wrap';
-                        pre.style.wordBreak = 'break-all';
-                        pre.style.overflow = 'visible';
-                        pre.querySelectorAll('code').forEach(c => {
-                            c.style.color = '#000';
-                            c.style.background = 'transparent';
-                        });
-                    });
-                    mb.querySelectorAll('code').forEach(c => {
-                        if (!c.parentElement.matches('pre')) {
-                            c.style.background = '#f4f4f4';
-                            c.style.color = '#d11141';
-                            c.style.padding = '1pt 3pt';
-                            c.style.borderRadius = '0';
-                        }
-                    });
-                    mb.querySelectorAll('table').forEach(t => {
-                        t.style.width = '100%';
-                        t.style.borderCollapse = 'collapse';
-                        t.style.margin = '10pt 0';
-                        t.style.fontSize = '8pt';
-                        t.querySelectorAll('th, td').forEach(cell => {
-                            cell.style.border = '1px solid #eee';
-                            cell.style.padding = '4pt';
-                        });
-                    });
-                });
+                    const isUser = role === 'user';
+                    return `
+                        <div style="background-color: transparent; border-bottom: 1px solid #eee; margin: 0; padding: 20px 0; page-break-inside: avoid; width: 100%; max-width: 100%; display: block;">
+                            <div style="font-size: 7pt; font-weight: bold; margin-bottom: 10px; color: ${isUser ? '#888' : '#3b82f6'}; border-bottom: 1px dashed #eee; padding-bottom: 4px;">
+                                >>> ${role.toUpperCase()} [${timestamp}]
+                            </div>
+                            <div class="markdown-body-pdf" style="max-width: 100%; overflow-x: auto;">
+                                ${renderedHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                container.appendChild(chatContentDiv);
 
-                container.appendChild(messagesClone);
-
+                // Footer
                 const footer = document.createElement('div');
                 footer.style.marginTop = '20px';
                 footer.style.fontSize = '7pt';
@@ -5629,33 +5733,19 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 html2pdf().set(opt).from(container).save();
                 return;
             }
-
-            const extension = type === 'md' ? 'md' : 'txt';
-            const mime = type === 'md' ? 'text/markdown' : 'text/plain';
-            
-            const blob = new Blob([messages], { type: mime });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `rawcore_export_${Date.now()}.${extension}`;
-            a.click();
-            URL.revokeObjectURL(url);
         };
 
         window.exportSinglePDF = (messageDiv) => {
             const isUser = messageDiv.classList.contains('bg-gray-800');
+            const content = messageDiv.getAttribute('data-raw-content') || ''; // Get raw markdown content
+            const renderedHtml = marked.parse(content); // Render markdown to HTML
+            const timestamp = messageDiv.dataset.timestamp ? new Date(parseInt(messageDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
+
             const container = document.createElement('div');
             container.style.padding = '40px';
             container.style.background = 'white';
             container.style.width = '800px';
             container.style.fontFamily = "'Fira Code', monospace";
-
-            const element = messageDiv.cloneNode(true);
-            element.style.background = 'transparent';
-            element.style.color = '#000';
-            element.style.padding = '0';
-            element.style.margin = '0';
-            element.className = ''; 
 
             const roleLabel = document.createElement('div');
             roleLabel.style.fontSize = '7pt';
@@ -5664,45 +5754,13 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             roleLabel.style.color = isUser ? '#888' : '#3b82f6';
             roleLabel.style.borderBottom = '1px dashed #eee';
             roleLabel.style.paddingBottom = '4px';
-            roleLabel.innerText = isUser ? '>>> USER_INPUT' : '>>> RAWCORE_RESPONSE';
-            element.prepend(roleLabel);
+            roleLabel.innerText = `>>> ${isUser ? 'USER_INPUT' : 'RAWCORE_RESPONSE'} [${timestamp}]`;
+            container.appendChild(roleLabel);
 
-            const mb = element.querySelector('.markdown-body');
-            if (mb) {
-                mb.style.color = '#000';
-                mb.style.fontSize = '10pt';
-                mb.style.lineHeight = '1.4';
-                mb.querySelectorAll('pre').forEach(pre => {
-                    pre.style.background = '#f9f9f9';
-                    pre.style.color = '#000';
-                    pre.style.padding = '10pt';
-                    pre.style.border = '1px solid #eee';
-                    pre.style.fontSize = '8.5pt';
-                    pre.style.whiteSpace = 'pre-wrap';
-                    pre.style.wordBreak = 'break-all';
-                    pre.querySelectorAll('code').forEach(c => c.style.color = '#000');
-                });
-                mb.querySelectorAll('code').forEach(c => {
-                    if (!c.parentElement.matches('pre')) {
-                        c.style.background = '#f4f4f4';
-                        c.style.color = '#d11141';
-                        c.style.padding = '1pt 3pt';
-                    }
-                });
-                mb.querySelectorAll('table').forEach(t => {
-                    t.style.width = '100%';
-                    t.style.borderCollapse = 'collapse';
-                    t.style.margin = '10pt 0';
-                    t.style.fontSize = '8pt';
-                    t.querySelectorAll('th, td').forEach(cell => {
-                        cell.style.border = '1px solid #eee';
-                        cell.style.padding = '4pt';
-                    });
-                });
-            }
-
-            element.querySelectorAll('button, .flex.gap-4').forEach(el => el.remove());
-            container.appendChild(element);
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'markdown-body-pdf'; // Apply the new PDF-specific markdown class
+            contentDiv.innerHTML = renderedHtml; // Insert the rendered HTML
+            container.appendChild(contentDiv);
 
             const footer = document.createElement('div');
             footer.style.marginTop = '30px';
