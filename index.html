@@ -4107,6 +4107,7 @@ ${originalText}`;
             window.showLoading(attachmentData.length > 0 ? "UPLOADING_FILES..." : "AI_PROCESSING...");
             
             isGenerating = true;
+            document.querySelectorAll('.continue-btn').forEach(b => b.style.pointerEvents = 'none');
             sendBtn.innerText = 'STOP';
             sendBtn.classList.replace('bg-blue-600', 'bg-red-600');
             sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
@@ -4256,6 +4257,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         aiPayload: currentPayload // Store the captured payload here
                     });
                     botMsgHandles.div.dataset.msgId = botMsgRef.id;
+                    botMsgHandles.div.dataset.finishReason = window.__lastFinishReason || 'STOP';
                     return response;
                 };
 
@@ -4273,23 +4275,29 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             } catch (err) {
                 if (err.name === 'AbortError') {
                     const win = document.getElementById('chat-window');
-                    const lastBotMsg = win.querySelector('.bg-gray-900:last-child');
+                    const botBubbles = win.querySelectorAll('[data-role="bot"]');
+                    const lastBotMsg = botBubbles[botBubbles.length - 1];
                     if (lastBotMsg) {
                         const raw = lastBotMsg.getAttribute('data-raw-content') || "";
-                        const abortedText = raw + "\n\n_Generation stopped by user._";
-                        lastBotMsg.setAttribute('data-raw-content', abortedText);
-                        lastBotMsg.querySelector('.markdown-body').innerHTML = marked.parse(abortedText);
+                        const visualText = raw + "\n\n_Generation stopped by user._";
+                        const body = lastBotMsg.querySelector('[data-type="content-display"]');
+                        if (body) body.innerHTML = marked.parse(visualText);
+                        lastBotMsg.dataset.finishReason = 'USER_ABORT';
+                        // Remove the dangling GENERATING_RESPONSE indicator
+                        lastBotMsg.querySelectorAll('.typing-indicator').forEach(el => el.remove());
                     }
                 } else {
                     appendMessage('bot', "ERROR: " + err.message, Date.now(), null, false);
                 }
             } finally {
-                window.hideLoading();
                 isGenerating = false;
+                window.hideLoading();
                 sendBtn.innerText = 'SEND';
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
                 sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
                 currentAbortController = null;
+                window.refreshContinueVisibility();
+                document.querySelectorAll('.continue-btn').forEach(b => b.style.pointerEvents = '');
             }
         };
 
@@ -4434,6 +4442,7 @@ QUANTUM_PHYSICS_QUARKS`;
 
         async function fetchGemini(prompt, attachments, model, key, signal, history = [], onUpdate) {
             const isStreaming = typeof onUpdate === 'function';
+            let lastFinishReason = null;
             const endpoint = isStreaming ? 'streamGenerateContent' : 'generateContent';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${key}${isStreaming ? '&alt=sse' : ''}`;
             
@@ -4474,6 +4483,15 @@ ${bhagawanUvaachText}
                     } else if (content) {
                         lastMsg.parts[0].text += `\n\n--- BEGIN_FILE: ${file.name} ---\n${content}\n--- END_FILE: ${file.name} ---`;
                     }
+                }
+                // CONTINUE support: if the last history turn is a model turn (i.e. we're
+                // prefilling), append a lightweight user nudge so Gemini actually generates.
+                // Gemini often silently drops requests that end on a model turn.
+                if (contents[contents.length - 1].role === 'model') {
+                    contents.push({
+                        role: 'user',
+                        parts: [{ text: 'Continue exactly from where the previous message stopped. Do not restart, do not repeat, do not add preamble. If the previous message was already complete, reply with only: "Response appears complete. What would you like next?"' }]
+                    });
                 }
             } else {
                 const parts = [{ text: prompt || "Analyzing provided content..." }];
@@ -4540,15 +4558,32 @@ ${bhagawanUvaachText}
                     if (line.startsWith("data: ")) {
                         try {
                             const data = JSON.parse(line.substring(6));
-                            const text = data.candidates[0].content.parts[0].text;
+                            // Surface blocked responses instead of silently dropping
+                            if (data.promptFeedback && data.promptFeedback.blockReason) {
+                                console.warn("GEMINI_BLOCKED:", data.promptFeedback.blockReason);
+                                onUpdate(`\n[BLOCKED_BY_SAFETY: ${data.promptFeedback.blockReason}]`);
+                                continue;
+                            }
+                            if (!data.candidates || !data.candidates.length) continue;
+                            const cand = data.candidates[0];
+                            if (cand.finishReason) lastFinishReason = cand.finishReason;
+                            if (cand.finishReason && cand.finishReason !== 'STOP' && cand.finishReason !== 'MAX_TOKENS') {
+                                console.warn("GEMINI_FINISH_REASON:", cand.finishReason);
+                            }
+                            const text = cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
                             if (text) onUpdate(text);
-                        } catch (e) {}
+                        } catch (e) {
+                            // Log malformed SSE chunks instead of silently swallowing
+                            console.warn("GEMINI_SSE_PARSE_ERR:", e.message, line.slice(0, 120));
+                        }
                     }
                 }
             }
+            window.__lastFinishReason = lastFinishReason || 'STOP';
         }
 
         async function fetchGroq(prompt, attachments, model, key, signal, history = [], onUpdate) {
+            let lastFinishReason = null;
             let enrichedPrompt = isJsonMode ? `${prompt}\n\nINSTRUCTION: OUTPUT_ONLY_VALID_JSON.` : prompt;
             if (attachments.length > 0) {
                 enrichedPrompt += "\n\n[USER_ATTACHED_FILES_CONTENT]";
@@ -4588,7 +4623,14 @@ ${bhagawanUvaachText}
 
             if (history.length > 0) {
                 messages = [...messages, ...history];
-                messages[messages.length - 1].content = enrichedPrompt;
+                if (messages[messages.length - 1].role === 'user') {
+                    messages[messages.length - 1].content = enrichedPrompt;
+                } else {
+                    messages.push({
+                        role: "user",
+                        content: "Continue exactly from where the previous message stopped. Do not restart, do not repeat, do not add preamble. If the previous message was already complete, reply with only: \"Response appears complete. What would you like next?\""
+                    });
+                }
             } else {
                 messages.push({ role: "user", content: enrichedPrompt });
             }
@@ -4649,12 +4691,20 @@ ${bhagawanUvaachText}
                     if (trimmedLine.startsWith("data: ")) {
                         try {
                             const data = JSON.parse(trimmedLine.substring(6));
-                            const delta = data.choices[0].delta.content;
+                            if (!data.choices || !data.choices.length) continue;
+                            if (data.choices[0].finish_reason) lastFinishReason = data.choices[0].finish_reason;
+                            const delta = data.choices[0].delta && data.choices[0].delta.content;
                             if (delta) onUpdate(delta);
-                        } catch (e) {}
+                            if (data.choices[0].finish_reason && data.choices[0].finish_reason !== 'stop') {
+                                console.warn("GROQ_FINISH_REASON:", data.choices[0].finish_reason);
+                            }
+                        } catch (e) {
+                            console.warn("GROQ_SSE_PARSE_ERR:", e.message, trimmedLine.slice(0, 120));
+                        }
                     }
                 }
             }
+            window.__lastFinishReason = lastFinishReason || 'stop';
         }
 
         function getRelativeTimeString(timestamp) {
@@ -4853,9 +4903,9 @@ ${bhagawanUvaachText}
 
             if (role === 'bot') {
                 const continueBtn = document.createElement('button');
-                continueBtn.className = "text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
+                continueBtn.className = "continue-btn text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
                 continueBtn.onclick = () => window.continueConversation();
-                continueBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span>CONTINUE</span></div>`;
+                continueBtn.innerHTML = `<div class="flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg><span class="continue-label">CONTINUE</span></div>`;
                 
                 const speakBtn = document.createElement('button');
                 speakBtn.className = "speak-btn text-[10px] text-gray-400 hover:text-blue-400 focus:text-blue-400 transition-colors focus:outline-none";
@@ -4873,8 +4923,9 @@ ${bhagawanUvaachText}
                 desktopActions.appendChild(payloadBtn);
 
                 mobileMenu.appendChild(wrapBtn(tocBtn, "TOC"));
-                mobileMenu.appendChild(wrapBtn(continueBtn, "CONTINUE"));
-                mobileMenu.appendChild(wrapBtn(speakBtn, "SPEAK"));
+                const continueBtnMob = wrapBtn(continueBtn, "CONTINUE");
+                continueBtnMob.classList.add('continue-btn');
+                mobileMenu.appendChild(continueBtnMob);                mobileMenu.appendChild(wrapBtn(speakBtn, "SPEAK"));
                 mobileMenu.appendChild(wrapBtn(payloadBtn, "PAYLOAD"));
             }
 
@@ -4917,6 +4968,7 @@ ${bhagawanUvaachText}
             
             updateMinimap();
             window.renderMermaid();
+            window.refreshContinueVisibility();
             return { div, rawContent, metricsSpan };
         }
 
@@ -5159,7 +5211,8 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
                 sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
                 currentAbortController = null;
-                window.currentPayload = null; // Clear payload after use
+                window.currentPayload = null;
+                window.refreshContinueVisibility();
             }
         };
 
@@ -5832,14 +5885,221 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             html2pdf().set(opt).from(container).save();
         };
 
-        function continueConversation() {
-            const input = document.getElementById('user-input');
-            if (!input || isGenerating) return;
-            input.value = "Continue";
-            adjustHeight(input);
-            window.handleSendAction();
-        }
-        window.continueConversation = continueConversation;
+        window.continueConversation = async () => {
+            if (isGenerating) return;
+            if (!currentChatId) { window.showToast("NO_ACTIVE_CHAT", "error"); return; }
+
+            const win = document.getElementById('chat-window');
+            const botMsgs = win.querySelectorAll('[data-role="bot"]');
+            const lastBot = botMsgs[botMsgs.length - 1];
+            if (!lastBot) { window.showToast("NOTHING_TO_CONTINUE", "info"); return; }
+
+            // Continuation depth guard: after 3 continuations quality degrades badly
+            // (model starts repeating, summarizing, or writing extra endings).
+            const continueCount = parseInt(lastBot.dataset.continueCount || '0');
+            if (continueCount >= 3) {
+                window.showToast("CONTINUE_LIMIT_REACHED — start a new message for best results", "error");
+                return;
+            }
+            if (continueCount === 2) {
+                window.showToast("WARNING: repeated continuations may degrade quality", "info");
+            }
+
+            const existingRaw = lastBot.getAttribute('data-raw-content') || '';
+            if (!existingRaw.trim()) { window.showToast("NOTHING_TO_CONTINUE", "info"); return; }
+            const msgId = lastBot.dataset.msgId;
+            const model = document.getElementById('text-model-select').value;
+
+            isGenerating = true;
+            document.querySelectorAll('.continue-btn').forEach(b => b.style.pointerEvents = 'none');
+            const sendBtn = document.getElementById('send-btn');
+            sendBtn.innerText = 'STOP';
+            sendBtn.classList.replace('bg-blue-600', 'bg-red-600');
+            sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
+            currentAbortController = new AbortController();
+            window.showLoading("CONTINUING_RESPONSE...");
+
+            const indicator = document.createElement('div');
+            indicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
+            indicator.innerText = "CONTINUING";
+            lastBot.appendChild(indicator);
+
+            let history = [];
+            try {
+                const q = query(collection(db, `chats/${currentChatId}/messages`), orderBy("timestamp", "asc"));
+                const snap = await getDocs(q);
+                snap.forEach(d => {
+                    const m = d.data();
+                    if (!m.isExcluded) {
+                        history.push({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content });
+                    }
+                });
+            } catch (e) {
+                console.warn("Continue: history load failed", e);
+            }
+
+            if (history.length > 0 && history[history.length - 1].role === 'assistant') {
+                history[history.length - 1].content = existingRaw;
+            } else {
+                history.push({ role: 'assistant', content: existingRaw });
+            }
+
+            const CONTINUE_SENTINEL = "\u200B";
+            const startTime = Date.now();
+            let gotFirstToken = false;
+            let sentinelDetected = false;
+
+            // Watchdog: if no tokens arrive within 20s, abort and notify
+            const watchdog = setTimeout(() => {
+                if (!gotFirstToken && currentAbortController) {
+                    console.warn("CONTINUE_WATCHDOG_TIMEOUT");
+                    window.showToast("CONTINUE_TIMED_OUT_NO_TOKENS", "error");
+                    currentAbortController.abort();
+                }
+            }, 20000);
+
+            // Trim any prefix of `chunk` that duplicates a suffix of `existingRaw`.
+            // Prevents text like "her voice, once reservedShe held informal classes..."
+            const stripOverlap = (base, addition) => {
+                if (!base || !addition) return addition;
+                const maxCheck = Math.min(base.length, addition.length, 200);
+                for (let len = maxCheck; len >= 8; len--) {
+                    if (base.slice(-len) === addition.slice(0, len)) {
+                        return addition.slice(len);
+                    }
+                }
+                return addition;
+            };
+
+            const onUpdate = (chunk) => {
+                gotFirstToken = true;
+                clearTimeout(watchdog);
+
+                // Suppress the "complete" sentinel phrase entirely
+                const trimmed = (chunk || "").trim();
+                if (trimmed === 'Response appears complete.' ||
+                    trimmed === 'Response appears complete. What would you like next?' ||
+                    trimmed === 'Response appears complete. What would you like next') {
+                    sentinelDetected = true;
+                    window.showToast("RESPONSE_APPEARS_COMPLETE", "info");
+                    return;
+                }
+
+                const cleanChunk = stripOverlap(existingRaw, chunk);
+                const merged = existingRaw + cleanChunk;
+                lastBot.setAttribute('data-raw-content', merged);
+                const body = lastBot.querySelector('[data-type="content-display"]');
+                if (isRawMode) {
+                    const pre = body.querySelector('pre') || body;
+                    pre.innerText = merged;
+                } else {
+                    body.innerHTML = marked.parse(merged);
+                }
+                const elapsed = Date.now() - startTime;
+                const tokens = Math.ceil(merged.length / 4);
+                const metrics = lastBot.querySelector('.metrics-display');
+                if (metrics) {
+                    metrics.classList.remove('hidden');
+                    metrics.innerText = `[${tokens}_TOKENS // ${(tokens / (elapsed / 1000)).toFixed(1)}_TPS]`;
+                }
+                if (!userHasScrolledUp) win.scrollTo({ top: win.scrollHeight });
+                updateMinimap();
+                window.renderMermaid();
+            };
+
+            try {
+                const newChunk = await callAIWithFailover(
+                    CONTINUE_SENTINEL, [], model,
+                    currentAbortController.signal, history,
+                    isStreamingEnabled ? onUpdate : null
+                );
+                if (!isStreamingEnabled) onUpdate(newChunk);
+
+                // If the model just said "complete", don't persist a duplicate
+                if (!sentinelDetected && msgId) {
+                    const cleanNew = stripOverlap(existingRaw, newChunk);
+                    await updateDoc(doc(db, `chats/${currentChatId}/messages`, msgId), {
+                        content: existingRaw + cleanNew,
+                        continuedAt: Date.now()
+                    });
+                }
+                lastBot.dataset.finishReason = window.__lastFinishReason || 'STOP';
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    window.showToast("CONTINUE_FAILED: " + err.message, "error");
+                }
+            } finally {
+                clearTimeout(watchdog);
+                indicator.remove();
+                window.hideLoading();
+                isGenerating = false;
+                sendBtn.innerText = 'SEND';
+                sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
+                sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
+                currentAbortController = null;
+                // Only increment the counter if we actually got new content
+                if (gotFirstToken && !sentinelDetected) {
+                    lastBot.dataset.continueCount = String(continueCount + 1);
+                }
+                window.refreshContinueVisibility();
+                document.querySelectorAll('.continue-btn').forEach(b => b.style.pointerEvents = '');
+            }
+        };
+
+        window.refreshContinueVisibility = () => {
+            const win = document.getElementById('chat-window');
+            if (!win) return;
+            const allBotMsgs = win.querySelectorAll('[data-role="bot"]');
+            const last = allBotMsgs[allBotMsgs.length - 1];
+
+            // Clean up any dangling typing indicators on non-generating bubbles
+            if (!isGenerating) {
+                allBotMsgs.forEach(msg => {
+                    msg.querySelectorAll('.typing-indicator').forEach(el => el.remove());
+                });
+            }
+
+            // Dedupe: keep only ONE .continue-btn per CONTAINER (desktopActions vs mobileMenu)
+            allBotMsgs.forEach(msg => {
+                const seenParents = new Set();
+                msg.querySelectorAll('.continue-btn').forEach(b => {
+                    if (seenParents.has(b.parentElement)) {
+                        b.remove();
+                    } else {
+                        seenParents.add(b.parentElement);
+                    }
+                });
+            });
+
+            win.querySelectorAll('.continue-btn').forEach(b => {
+                const ownerDiv = b.closest('[data-role="bot"]');
+                const isLast = ownerDiv === last;
+                b.style.display = (isLast && !isGenerating) ? '' : 'none';
+
+                if (isLast && ownerDiv) {
+                    const raw = ownerDiv.getAttribute('data-raw-content') || '';
+                    const trimmed = raw.trimEnd();
+                    const lastChar = trimmed.slice(-1);
+                    const fr = ownerDiv.dataset.finishReason || '';
+                    const endsMid = lastChar && !/[.!?)\]}`"'\u201d\u2019]/.test(lastChar);
+                    const wasTruncated = fr === 'MAX_TOKENS' || fr === 'LENGTH' || fr === 'length' || fr === 'USER_ABORT';
+                    if (wasTruncated || endsMid) {
+                        b.classList.add('text-blue-400');
+                        b.title = wasTruncated ? 'Response was cut off — click to continue' : 'Response may be incomplete — click to continue';
+                    } else {
+                        b.classList.remove('text-blue-400');
+                        b.title = 'Ask the model to continue';
+                    }
+
+                    // Show continuation count in the label
+                    const count = parseInt(ownerDiv.dataset.continueCount || '0');
+                    const label = b.querySelector('.continue-label');
+                    if (label) {
+                        label.innerText = count > 0 ? `CONTINUE (${count})` : 'CONTINUE';
+                    }
+                }
+            });
+        };
 
         let currentUtterance = null;
         window.currentPayload = null; // Global variable to store the latest AI payload sent
@@ -6353,6 +6613,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     appendMessage(data.role, data.content, data.timestamp, docSnap.id, !!data.isExcluded);
                 });
                 updateMinimap();
+                window.refreshContinueVisibility();
             } catch (err) {
                 console.error("Error loading messages:", err);
             }
