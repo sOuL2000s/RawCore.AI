@@ -63,7 +63,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Source+Code+Pro:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&family=Source+Code+Pro:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; padding: 0; }
 
@@ -80,9 +80,15 @@
             --bg-secondary: #161b22;
             --border-ui: #30363d;
             --text-main: #e6edf3;
+            --text-muted: #9ba3ae;
+            --text-dim: #6e7681;
             --accent: #3b82f6;
             --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
             --font-main: 'Fira Code', monospace;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         body.theme-matrix {
@@ -159,6 +165,16 @@
         .bg-red-600 { color: #ffffff !important; }
         .border-blue-400, .border-blue-500, .border-blue-600, .toast { border-color: var(--accent) !important; }
         
+        /* UI typography — sans-serif for chrome, mono for content */
+        button, select, input[type="text"], input[type="email"], input[type="password"],
+        input[type="number"], label, .ui-label, header, footer, aside nav button {
+            font-family: var(--font-ui);
+            letter-spacing: normal;
+        }
+
+        /* Contrast fixes */
+        .text-gray-500, .text-gray-600 { color: var(--text-muted) !important; }
+        .relative-time, .metrics-display { color: var(--text-dim) !important; }
         .markdown-body { overflow-wrap: break-word; width: 100%; max-width: 100%; color: var(--text-main); }
         .markdown-body pre { 
             background: var(--bg-secondary) !important; 
@@ -468,7 +484,7 @@
             .markdown-body table, .markdown-body-pdf table { border: 1px solid #eee !important; width: 100% !important; }
             .markdown-body th, .markdown-body td, .markdown-body-pdf th, .markdown-body-pdf td { border: 1px solid #eee !important; color: #000 !important; background: transparent !important; }
             /* Chat message specific wrappers */
-            .bg-gray-800, .bg-gray-900 {
+            [data-role] {
                 background: white !important;
                 border: none !important;
                 border-bottom: 1px solid #f0f0f0 !important;
@@ -482,11 +498,39 @@
                 align-items: flex-start !important;
             }
             [data-role="user"] { margin-left: 0 !important; }
-            [data-role="bot"] { margin-right: 0 !important; }
-            .bg-gray-800::before { content: ">>> USER_INPUT"; font-weight: bold; font-size: 7pt; color: #888; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
-            .bg-gray-900::before { content: ">>> RAWCORE_RESPONSE"; font-weight: bold; font-size: 7pt; color: #3b82f6; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
+            [data-role="bot"] { margin-right: 0 !important; margin-left: 0 !important; }
+            [data-role="user"]::before { content: ">>> USER_INPUT"; font-weight: bold; font-size: 7pt; color: #888; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
+            [data-role="bot"]::before { content: ">>> RAWCORE_RESPONSE"; font-weight: bold; font-size: 7pt; color: #3b82f6; display: block; margin-bottom: 8pt; border-bottom: 1px dashed #eee; width: 100%; }
             .metrics-display, .relative-time { font-size: 6pt !important; color: #aaa !important; opacity: 1 !important; }
         }
+
+        .streaming-cursor::after {
+            content: '▋';
+            display: inline-block;
+            color: var(--accent);
+            animation: cursor-blink 1s step-end infinite;
+            margin-left: 2px;
+        }
+        @keyframes cursor-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
+        /* Force visible focus on all interactive elements */
+        button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+            outline: 2px solid var(--accent) !important;
+            outline-offset: 2px;
+        }
+
     </style>
 </head>
 <body class="flex flex-col compact">
@@ -569,11 +613,16 @@
                 </div>
                 <img id="user-avatar" class="w-6 h-6 md:w-8 md:h-8 rounded border border-gray-800 bg-gray-900" src="" alt="" aria-hidden="true">
             </div>
-            <button type="button" onclick="window.toggleKeyMap()" id="keymap-btn" aria-label="Show Shortcut Map" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">KEYS</button>
             <button type="button" onclick="togglePanel('help-panel')" id="help-btn" aria-label="Open User Guide" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">HELP</button>
             <button type="button" onclick="togglePanel('admin-panel')" id="admin-btn" aria-label="Open Admin Configuration" class="hidden text-[9px] sm:text-xs text-yellow-500 border border-yellow-500 px-1 sm:px-2 py-1 rounded">ADMIN</button>
-            <button type="button" onclick="togglePanel('about-panel')" id="about-btn" aria-label="Open About The Creator Panel" class="text-[9px] sm:text-xs text-blue-400 border border-blue-400 px-1 sm:px-2 py-1 rounded">ABOUT</button>
-            <button type="button" onclick="logout()" aria-label="Logout" class="text-[9px] sm:text-xs text-red-500 border border-red-500 px-1 sm:px-2 py-1 rounded">LOGOUT</button>
+            <div class="relative" id="header-overflow-container">
+                <button type="button" onclick="window.toggleHeaderOverflow()" aria-label="More options" aria-haspopup="true" aria-expanded="false" class="text-[9px] sm:text-xs text-gray-400 border border-gray-700 hover:border-blue-400 hover:text-blue-400 px-2 py-1 rounded transition-colors">⋮</button>
+                <div id="header-overflow-menu" class="absolute right-0 top-full mt-2 w-44 glass rounded-lg border border-gray-700 shadow-2xl hidden z-[60] overflow-hidden flex flex-col">
+                    <button type="button" onclick="window.toggleKeyMap(); window.toggleHeaderOverflow();" class="w-full text-left px-3 py-2 text-[10px] text-gray-300 hover:bg-blue-600/20 hover:text-white transition-colors uppercase tracking-tighter font-bold">Shortcuts</button>
+                    <button type="button" onclick="togglePanel('about-panel'); window.toggleHeaderOverflow();" class="w-full text-left px-3 py-2 text-[10px] text-gray-300 hover:bg-blue-600/20 hover:text-white transition-colors uppercase tracking-tighter font-bold">About</button>
+                    <button type="button" onclick="logout(); window.toggleHeaderOverflow();" class="w-full text-left px-3 py-2 text-[10px] text-red-400 hover:bg-red-600/20 transition-colors uppercase tracking-tighter font-bold border-t border-gray-800">Logout</button>
+                </div>
+            </div>
         </div>
 
         <!-- Mobile Header Menu Toggle -->
@@ -599,6 +648,12 @@
         </div>
 
         <nav class="flex flex-col gap-3">
+            <button onclick="createNewChat(); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-blue-400 border border-blue-400/30 p-3 rounded hover:bg-blue-400/10 transition-colors flex justify-between items-center uppercase">
+                <span>+ New_Chat</span>
+            </button>
+            <button onclick="toggleSidebar(); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-blue-400 border border-blue-400/30 p-3 rounded hover:bg-blue-400/10 transition-colors flex justify-between items-center uppercase">
+                <span>Chat_History</span>
+            </button>
             <button onclick="window.toggleKeyMap(); toggleHeaderMenu();" class="w-full text-left text-xs font-bold text-blue-400 border border-blue-400/30 p-3 rounded hover:bg-blue-400/10 transition-colors flex justify-between items-center uppercase">
                 <span>Shortcut_Keys</span>
                 <span class="text-[9px] opacity-40">ALT+K</span>
@@ -640,9 +695,9 @@
                     <button onclick="deleteAllChats()" aria-label="Clear all chat history" class="flex-1 border border-red-900/30 p-1 hover:bg-red-900/20 rounded text-[9px] text-red-500/50 hover:text-red-500 transition-colors uppercase font-mono tracking-tighter">Clear_All</button>
                 </div>
                 <div class="flex gap-1">
-                    <button onclick="window.exportFullDatabase()" aria-label="Export all chats as JSON" class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-blue-400/70 transition-colors uppercase font-mono tracking-tighter">Backup_DB</button>
-                    <label class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-blue-400/70 transition-colors uppercase font-mono tracking-tighter cursor-pointer text-center flex items-center justify-center">
-                        Restore_DB
+                    <button onclick="window.exportFullDatabase()" aria-label="Export all chats as JSON" class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-500 hover:text-blue-400 transition-colors uppercase font-mono tracking-tighter">⭳ Backup</button>
+                    <label class="flex-1 border border-gray-800 p-1 hover:bg-gray-800 rounded text-[9px] text-gray-500 hover:text-blue-400 transition-colors uppercase font-mono tracking-tighter cursor-pointer text-center flex items-center justify-center">
+                        ⭱ Restore
                         <input type="file" accept=".json" class="hidden" onchange="window.importFullDatabase(this.files[0]); this.value='';">
                     </label>
                 </div>
@@ -781,7 +836,7 @@
             </div>
 
             <div class="flex-1 min-h-0 relative flex flex-col">
-                <div id="chat-window" class="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 md:space-y-3 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
+                <div id="chat-window" class="flex-1 overflow-y-auto p-2 pr-10 md:p-4 md:pr-12 space-y-2 md:space-y-3 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
                     <!-- Messages -->
                 </div>
                 
@@ -1526,6 +1581,7 @@
 
         // --- CONSOLE LOG CAPTURE ---
         const logHistory = [];
+        const MAX_LOG_HISTORY = 2000;
         const originalLog = console.log;
         const originalWarn = console.warn;
         const originalError = console.error;
@@ -1556,19 +1612,19 @@
         console.log = (...args) => {
             const formattedEntry = formatLog('LOG', args);
             logHistory.push(formattedEntry);
-            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
+            if (logHistory.length > MAX_LOG_HISTORY) logHistory.shift();            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalLog.apply(console, args);
         };
         console.warn = (...args) => {
             const formattedEntry = formatLog('WARN', args);
             logHistory.push(formattedEntry);
-            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
+            if (logHistory.length > MAX_LOG_HISTORY) logHistory.shift();            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalWarn.apply(console, args);
         };
         console.error = (...args) => {
             const formattedEntry = formatLog('ERROR', args);
             logHistory.push(formattedEntry);
-            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
+            if (logHistory.length > MAX_LOG_HISTORY) logHistory.shift();            updateConsoleLogViewer(formattedEntry); // Update real-time viewer
             originalError.apply(console, args);
         };
 
@@ -1935,6 +1991,33 @@
                 document.addEventListener('click', closeMenu);
                 document.addEventListener('keydown', handleKey);
             }, 10);
+        };
+
+        window.toggleHeaderOverflow = () => {
+            const menu = document.getElementById('header-overflow-menu');
+            const btn = document.querySelector('#header-overflow-container button');
+            if (!menu || !btn) return;
+            const isHidden = menu.classList.contains('hidden');
+            // Always remove any stale listener first
+            if (window._headerOverflowClose) {
+                document.removeEventListener('click', window._headerOverflowClose);
+                window._headerOverflowClose = null;
+            }
+            if (!isHidden) {
+                menu.classList.add('hidden');
+                btn.setAttribute('aria-expanded', 'false');
+                return;
+            }
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            window._headerOverflowClose = (e) => {
+                if (e.target.closest('#header-overflow-container')) return;
+                menu.classList.add('hidden');
+                btn.setAttribute('aria-expanded', 'false');
+                document.removeEventListener('click', window._headerOverflowClose);
+                window._headerOverflowClose = null;
+            };
+            setTimeout(() => document.addEventListener('click', window._headerOverflowClose), 10);
         };
 
         window.logout = () => signOut(auth);
@@ -4237,6 +4320,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                             else botMsgHandles.rawContent.innerText = fullText || "";
                         } else {
                             botMsgHandles.rawContent.innerHTML = marked.parse(fullText || "");
+                            botMsgHandles.rawContent.classList.add('streaming-cursor');
                         }
                         const tocBtn = botMsgHandles.div.querySelector('.bot-toc-btn');
                         if (tocBtn && (fullText.includes('# ') || fullText.includes('\n#'))) tocBtn.classList.remove('hidden');
@@ -4248,6 +4332,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     const response = await callAIWithFailover(text, processedAttachments, modelValue, currentAbortController.signal, history, isStreamingEnabled ? onUpdate : null);
                     if (!isStreamingEnabled) onUpdate(response);
                     indicator.remove();
+                    botMsgHandles.rawContent.classList.remove('streaming-cursor');
                     
                     const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                         role: 'bot', 
@@ -4729,15 +4814,28 @@ ${bhagawanUvaachText}
             div.dataset.timestamp = timestamp;
             if (msgId) div.dataset.msgId = msgId;
             if (isExcluded) div.classList.add('opacity-40', 'grayscale-[0.5]');
-            const marginClass = role === 'user' ? 'ml-4 sm:ml-8 md:ml-12 lg:ml-20' : 'mr-4 sm:mr-8 md:mr-12 lg:mr-20';
-            div.className = `p-2 md:p-3 rounded-lg ${role === 'user' ? 'bg-gray-800' : 'bg-gray-900 border border-gray-800'} ${marginClass} max-w-full min-w-0 flex flex-col group/msg transition-all duration-200`;
+            const marginClass = role === 'user' ? 'ml-auto sm:ml-16 md:ml-24 lg:ml-32' : 'mr-auto sm:mr-16 md:mr-24 lg:mr-32';
+            const roleClass = role === 'user'
+                ? 'bg-blue-950/20 border-l-2 border-blue-500/40'
+                : 'bg-gray-900/60 border-l-2 border-gray-700';
+            div.className = `p-2 md:p-3 rounded-lg ${roleClass} ${marginClass} max-w-[95%] min-w-0 flex flex-col group/msg transition-all duration-200`;
             
+            if (role === 'bot') {
+                const avatar = document.createElement('div');
+                avatar.className = 'hidden md:flex absolute top-2 w-7 h-7 rounded-full bg-blue-600/20 border border-blue-500/40 items-center justify-center text-[10px] font-bold text-blue-400';
+                avatar.style.left = '-2.25rem';
+                avatar.innerText = 'R';
+                div.classList.add('relative');
+                div.style.marginLeft = '2.5rem';
+                div.appendChild(avatar);
+            }
+
             const metaDiv = document.createElement('div');
             metaDiv.className = "flex justify-between items-center mb-1 text-[9px] font-mono tracking-tighter opacity-40 group-hover/msg:opacity-100 transition-opacity";
             
             const roleTag = document.createElement('span');
             roleTag.className = role === 'user' ? 'text-gray-400' : 'text-blue-400 font-bold';
-            roleTag.innerText = role.toUpperCase();
+            roleTag.innerText = role === 'bot' ? 'RAWCORE' : 'USER';
 
             const metaRight = document.createElement('div');
             metaRight.className = "flex gap-3 items-center";
@@ -5838,7 +5936,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
         };
 
         window.exportSinglePDF = (messageDiv) => {
-            const isUser = messageDiv.classList.contains('bg-gray-800');
+            const isUser = messageDiv.dataset.role === 'user';
             const content = messageDiv.getAttribute('data-raw-content') || ''; // Get raw markdown content
             const renderedHtml = marked.parse(content); // Render markdown to HTML
             const timestamp = messageDiv.dataset.timestamp ? new Date(parseInt(messageDiv.dataset.timestamp)).toLocaleString() : 'UNKNOWN_TIMESTAMP';
