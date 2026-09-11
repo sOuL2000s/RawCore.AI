@@ -531,6 +531,54 @@
             outline-offset: 2px;
         }
 
+        /* FLOATING_THINKING_INDICATOR: dot pill pinned to the bottom of the
+        visible viewport, ChatGPT-style, horizontally centered. */
+        #thinking-indicator {
+            display: none;
+            position: sticky;
+            bottom: 0.5rem;
+            z-index: 25;
+            align-self: center;
+            margin: 0.25rem auto 0 auto;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-ui);
+            width: fit-content;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        #thinking-indicator:hover {
+            transform: scale(1.05);
+            border-color: var(--accent);
+        }
+        #thinking-indicator:active {
+            transform: scale(0.95);
+        }
+        #thinking-indicator.visible {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        #thinking-indicator .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            opacity: 0.4;
+            animation: thinking-pulse 1.2s ease-in-out infinite;
+        }
+        #thinking-indicator .dot:nth-child(2) { animation-delay: 0.15s; }
+        #thinking-indicator .dot:nth-child(3) { animation-delay: 0.30s; }
+
+        @keyframes thinking-pulse {
+            0%, 80%, 100% { opacity: 0.4; transform: scale(1); }
+            40% { opacity: 1; transform: scale(1.25); }
+        }
+
     </style>
 </head>
 <body class="flex flex-col compact">
@@ -838,6 +886,11 @@
             <div class="flex-1 min-h-0 relative flex flex-col">
                 <div id="chat-window" class="flex-1 overflow-y-auto p-2 pr-10 md:p-4 md:pr-12 space-y-2 md:space-y-3 chat-scroll relative" role="log" aria-live="polite" aria-relevant="additions">
                     <!-- Messages -->
+                    <div id="thinking-indicator" role="button" tabindex="0" aria-label="Jump to latest message" onclick="window.scrollToEdge('bottom')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.scrollToEdge('bottom');}">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
                 </div>
                 
                 <!-- Minimap Track (Offset from right to allow independent scrollbar usage) -->
@@ -1815,6 +1868,21 @@
         let allUsers = []; 
         let clipboardHistory = JSON.parse(localStorage.getItem('rawcore_clipboard_history') || '[]');
 
+        // >>> CHAT_PERSISTENCE: remember the last opened chat across page reloads
+        const LAST_CHAT_KEY = 'rawcore_last_chat_id';
+
+        function persistCurrentChatId(id) {
+            try {
+                if (id) localStorage.setItem(LAST_CHAT_KEY, id);
+                else localStorage.removeItem(LAST_CHAT_KEY);
+            } catch (e) { /* ignore quota errors */ }
+        }
+
+        function readPersistedChatId() {
+            try { return localStorage.getItem(LAST_CHAT_KEY); }
+            catch (e) { return null; }
+        }
+
         // --- STATUS INDICATORS ---
         function setSyncStatus(isSyncing) {
             const el = document.getElementById('sync-indicator');
@@ -2063,6 +2131,11 @@
                         <div class="flex items-center gap-1.5"><span class="text-blue-500/50">[ALT+P]</span> PARAMETERS</div>
                         <div class="flex items-center gap-1.5"><span class="text-blue-500/50">[ALT+K]</span> SHORTCUTS</div>
                     </div>
+                    <div id="thinking-indicator" aria-hidden="true">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
                 </div>
             `;
             updateMinimap();
@@ -2070,6 +2143,7 @@
 
         window.createNewChat = () => {
             currentChatId = null;
+            persistCurrentChatId(null); // >>> CHAT_PERSISTENCE
             userHasScrolledUp = false;
             renderWelcomeScreen();
             window.closeTOC();
@@ -2413,6 +2487,39 @@
         window.hideLoading = () => {
             const el = document.getElementById('ai-loading');
             if (el) el.classList.add('hidden');
+        };
+
+        // >>> THINKING_INDICATOR: floating three-dot pill that lives at the bottom
+        // of #chat-window. Recreated if missing (e.g. after innerHTML wipes).
+        window.showThinkingIndicator = () => {
+            const win = document.getElementById('chat-window');
+            if (!win) return;
+
+            let ind = document.getElementById('thinking-indicator');
+            if (!ind) {
+                ind = document.createElement('div');
+                ind.id = 'thinking-indicator';
+                ind.setAttribute('role', 'button');
+                ind.setAttribute('tabindex', '0');
+                ind.setAttribute('aria-label', 'Jump to latest message');
+                ind.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+                ind.onclick = () => window.scrollToEdge('bottom');
+                ind.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        window.scrollToEdge('bottom');
+                    }
+                };
+            }
+            // Always ensure it's the last child
+            if (win.lastElementChild !== ind) win.appendChild(ind);
+            ind.classList.add('visible');
+            if (!userHasScrolledUp) win.scrollTop = win.scrollHeight;
+        };
+
+        window.hideThinkingIndicator = () => {
+            const ind = document.getElementById('thinking-indicator');
+            if (ind) ind.classList.remove('visible');
         };
 
         window.addToClipboardHistory = (text, label = "SNIPPET") => {
@@ -3227,7 +3334,26 @@
                 await loadChatHistory();
                 await loadSystemPrompts();
                 setupBroadcastListener();
-                if (!currentChatId) renderWelcomeScreen();
+
+                // >>> CHAT_PERSISTENCE: restore last opened chat if it still exists
+                const persistedId = readPersistedChatId();
+                if (persistedId) {
+                    try {
+                        const chatDoc = await getDoc(doc(db, "chats", persistedId));
+                        if (chatDoc.exists() && chatDoc.data().userId === user.uid) {
+                            await loadSpecificChat(persistedId);
+                        } else {
+                            persistCurrentChatId(null);
+                            renderWelcomeScreen();
+                        }
+                    } catch (e) {
+                        console.warn("Failed to restore last chat:", e);
+                        persistCurrentChatId(null);
+                        renderWelcomeScreen();
+                    }
+                } else if (!currentChatId) {
+                    renderWelcomeScreen();
+                }
                 if (isAdmin) {
                     loadUserRegistry();
                     loadKeyMetrics();
@@ -4188,7 +4314,7 @@ ${originalText}`;
             if (welcome) welcome.remove();
 
             window.showLoading(attachmentData.length > 0 ? "UPLOADING_FILES..." : "AI_PROCESSING...");
-            
+
             isGenerating = true;
             document.querySelectorAll('.continue-btn').forEach(b => b.style.pointerEvents = 'none');
             sendBtn.innerText = 'STOP';
@@ -4196,6 +4322,7 @@ ${originalText}`;
             sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
 
             currentAbortController = new AbortController();
+            window.showThinkingIndicator(); // >>> THINKING_INDICATOR
 
             let isNewChat = false;
             if (!currentChatId) {
@@ -4206,10 +4333,11 @@ ${originalText}`;
                     title: "NEW_CONVERSATION..."
                 });
                 currentChatId = newChat.id;
+                persistCurrentChatId(currentChatId); // >>> CHAT_PERSISTENCE
             }
 
             const userTimestamp = Date.now();
-            
+
             const processedAttachments = await Promise.all(attachmentData.map(async f => {
                 const content = await extractFileContent(f);
                 return { file: f, content: content };
@@ -4226,20 +4354,20 @@ ${originalText}`;
             }
 
             appendMessage('user', userDisplayContent, userTimestamp, null, false);
-            
+
             inputEl.value = '';
             attachments = [];
             document.getElementById('attachment-preview').innerHTML = '';
-            
+
             const model1 = document.getElementById('text-model-select').value;
             const model2 = isParallelMode ? document.getElementById('text-model-select-2').value : null;
-            
+
             try {
                 setSyncStatus(true);
                 const userMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'user', content: userDisplayContent, timestamp: userTimestamp
                 });
-                
+
                 const win = document.getElementById('chat-window');
                 const userBubbles = win.querySelectorAll('[data-role="user"]');
                 const lastUserBubble = userBubbles[userBubbles.length - 1];
@@ -4262,11 +4390,11 @@ ${originalText}`;
                         const toSummarize = rawHistory.slice(0, -4);
                         const recent = rawHistory.slice(-4);
                         const summaryPrompt = `SUMMARIZE_CONVERSATION_HISTORY:
-CONVERSATION_LOG:
-${toSummarize.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n')}
+        CONVERSATION_LOG:
+        ${toSummarize.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n')}
 
-INSTRUCTION: Provide a concise technical summary of the exchange above to be used as context for future prompts. Focus on decisions made, core topics discussed, and current status. OUTPUT_ONLY_SUMMARY.`;
-                        
+        INSTRUCTION: Provide a concise technical summary of the exchange above to be used as context for future prompts. Focus on decisions made, core topics discussed, and current status. OUTPUT_ONLY_SUMMARY.`;
+
                         try {
                             const summary = await callAIWithFailover(summaryPrompt, [], model, null, []);
                             history = [
@@ -4284,7 +4412,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 }
 
                 window.showLoading(isParallelMode ? "INITIALIZING_PARALLEL_STREAMS..." : "INITIALIZING_STREAM...");
-                
+
                 const generateResponse = async (modelValue, offset) => {
                     const botMsgHandles = appendMessage('bot', "", userTimestamp + offset, null, false);
                     if (isParallelMode) {
@@ -4294,7 +4422,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         label.innerText = `MODEL_SOURCE: ${mName}`;
                         botMsgHandles.div.prepend(label);
                     }
-                    
+
                     const indicator = document.createElement('div');
                     indicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
                     indicator.innerText = isStreamingEnabled ? "GENERATING_RESPONSE" : "FETCHING_RESPONSE";
@@ -4305,9 +4433,9 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         const elapsedMs = Date.now() - startTime;
                         const elapsedSec = elapsedMs / 1000;
                         const charCount = (fullText || "").length;
-                        const tokens = Math.ceil(charCount / 4); // Standard token heuristic
+                        const tokens = Math.ceil(charCount / 4);
                         const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
-                        
+
                         if (botMsgHandles.metricsSpan) {
                             botMsgHandles.metricsSpan.classList.remove('hidden');
                             botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
@@ -4333,13 +4461,13 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     if (!isStreamingEnabled) onUpdate(response);
                     indicator.remove();
                     botMsgHandles.rawContent.classList.remove('streaming-cursor');
-                    
+
                     const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
-                        role: 'bot', 
-                        content: response, 
-                        timestamp: userTimestamp + offset, 
+                        role: 'bot',
+                        content: response,
+                        timestamp: userTimestamp + offset,
                         modelLabel: modelValue,
-                        aiPayload: currentPayload // Store the captured payload here
+                        aiPayload: currentPayload
                     });
                     botMsgHandles.div.dataset.msgId = botMsgRef.id;
                     botMsgHandles.div.dataset.finishReason = window.__lastFinishReason || 'STOP';
@@ -4368,7 +4496,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                         const body = lastBotMsg.querySelector('[data-type="content-display"]');
                         if (body) body.innerHTML = marked.parse(visualText);
                         lastBotMsg.dataset.finishReason = 'USER_ABORT';
-                        // Remove the dangling GENERATING_RESPONSE indicator
                         lastBotMsg.querySelectorAll('.typing-indicator').forEach(el => el.remove());
                     }
                 } else {
@@ -4377,6 +4504,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             } finally {
                 isGenerating = false;
                 window.hideLoading();
+                window.hideThinkingIndicator(); // >>> THINKING_INDICATOR
                 sendBtn.innerText = 'SEND';
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
                 sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
@@ -5055,7 +5183,27 @@ ${bhagawanUvaachText}
             }
             
             win.appendChild(div);
-            
+
+            // >>> THINKING_INDICATOR: keep the pill as the last child so it always
+            // renders below the newest message bubble. If it's missing, recreate it.
+            let thinkingInd = document.getElementById('thinking-indicator');
+            if (!thinkingInd) {
+                thinkingInd = document.createElement('div');
+                thinkingInd.id = 'thinking-indicator';
+                thinkingInd.setAttribute('role', 'button');
+                thinkingInd.setAttribute('tabindex', '0');
+                thinkingInd.setAttribute('aria-label', 'Jump to latest message');
+                thinkingInd.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+                thinkingInd.onclick = () => window.scrollToEdge('bottom');
+                thinkingInd.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        window.scrollToEdge('bottom');
+                    }
+                };
+            }
+            win.appendChild(thinkingInd);
+
             if (!userHasScrolledUp) {
                 win.scrollTop = win.scrollHeight;
             } else {
@@ -5205,6 +5353,7 @@ ${bhagawanUvaachText}
             sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
 
             currentAbortController = new AbortController();
+            window.showThinkingIndicator(); // >>> THINKING_INDICATOR
             const model = document.getElementById('text-model-select').value;
             const userTimestamp = Date.now();
             const win = document.getElementById('chat-window');
@@ -5228,11 +5377,11 @@ ${bhagawanUvaachText}
                         const toSummarize = rawHistory.slice(0, -4);
                         const recent = rawHistory.slice(-4);
                         const summaryPrompt = `SUMMARIZE_CONVERSATION_HISTORY:
-CONVERSATION_LOG:
-${toSummarize.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n')}
+        CONVERSATION_LOG:
+        ${toSummarize.map(h => `${h.role.toUpperCase()}: ${h.content}`).join('\n')}
 
-INSTRUCTION: Provide a concise technical summary of the exchange above to be used as context for future prompts. Focus on decisions made, core topics discussed, and current status. OUTPUT_ONLY_SUMMARY.`;
-                        
+        INSTRUCTION: Provide a concise technical summary of the exchange above to be used as context for future prompts. Focus on decisions made, core topics discussed, and current status. OUTPUT_ONLY_SUMMARY.`;
+
                         try {
                             const summary = await callAIWithFailover(summaryPrompt, [], model, null, []);
                             history = [
@@ -5251,7 +5400,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
                 window.showLoading("GENERATING_NEW_RESPONSE...");
                 const botMsgHandles = appendMessage('bot', "", userTimestamp + 5, null, false);
-                
+
                 const typingIndicator = document.createElement('div');
                 typingIndicator.id = 'active-typing-indicator';
                 typingIndicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
@@ -5265,14 +5414,14 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                     const charCount = (fullText || "").length;
                     const tokens = Math.ceil(charCount / 4);
                     const tps = elapsedSec > 0 ? (tokens / elapsedSec).toFixed(1) : 0;
-                    
+
                     if (botMsgHandles.metricsSpan) {
                         botMsgHandles.metricsSpan.classList.remove('hidden');
                         botMsgHandles.metricsSpan.innerText = `[${tokens}_TOKENS // ${tps}_TPS // ${elapsedMs}ms]`;
                     }
 
                     botMsgHandles.div.setAttribute('data-raw-content', fullText || "");
-                    
+
                     if (isRawMode) {
                         const pre = botMsgHandles.rawContent.querySelector('pre');
                         if (pre) pre.innerText = fullText || "";
@@ -5290,7 +5439,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
                 const response = await callAIWithFailover(text, [], model, currentAbortController.signal, history, isStreamingEnabled ? onUpdate : null);
                 if (!isStreamingEnabled) onUpdate(response);
-                
+
                 const botMsgRef = await addDoc(collection(db, `chats/${currentChatId}/messages`), {
                     role: 'bot', content: response, timestamp: userTimestamp + 5
                 });
@@ -5304,6 +5453,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 const indicator = document.getElementById('active-typing-indicator');
                 if (indicator) indicator.remove();
                 window.hideLoading();
+                window.hideThinkingIndicator(); // >>> THINKING_INDICATOR
                 isGenerating = false;
                 sendBtn.innerText = 'SEND';
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
@@ -5992,8 +6142,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             const lastBot = botMsgs[botMsgs.length - 1];
             if (!lastBot) { window.showToast("NOTHING_TO_CONTINUE", "info"); return; }
 
-            // Continuation depth guard: after 3 continuations quality degrades badly
-            // (model starts repeating, summarizing, or writing extra endings).
             const continueCount = parseInt(lastBot.dataset.continueCount || '0');
             if (continueCount >= 3) {
                 window.showToast("CONTINUE_LIMIT_REACHED — start a new message for best results", "error");
@@ -6016,6 +6164,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             sendBtn.classList.replace('hover:bg-blue-500', 'hover:bg-red-500');
             currentAbortController = new AbortController();
             window.showLoading("CONTINUING_RESPONSE...");
+            window.showThinkingIndicator(); // >>> THINKING_INDICATOR
 
             const indicator = document.createElement('div');
             indicator.className = "text-[10px] text-blue-400/60 font-bold mt-2 uppercase tracking-tighter typing-indicator";
@@ -6047,7 +6196,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
             let gotFirstToken = false;
             let sentinelDetected = false;
 
-            // Watchdog: if no tokens arrive within 20s, abort and notify
             const watchdog = setTimeout(() => {
                 if (!gotFirstToken && currentAbortController) {
                     console.warn("CONTINUE_WATCHDOG_TIMEOUT");
@@ -6056,8 +6204,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 }
             }, 20000);
 
-            // Trim any prefix of `chunk` that duplicates a suffix of `existingRaw`.
-            // Prevents text like "her voice, once reservedShe held informal classes..."
             const stripOverlap = (base, addition) => {
                 if (!base || !addition) return addition;
                 const maxCheck = Math.min(base.length, addition.length, 200);
@@ -6073,7 +6219,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 gotFirstToken = true;
                 clearTimeout(watchdog);
 
-                // Suppress the "complete" sentinel phrase entirely
                 const trimmed = (chunk || "").trim();
                 if (trimmed === 'Response appears complete.' ||
                     trimmed === 'Response appears complete. What would you like next?' ||
@@ -6113,7 +6258,6 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 );
                 if (!isStreamingEnabled) onUpdate(newChunk);
 
-                // If the model just said "complete", don't persist a duplicate
                 if (!sentinelDetected && msgId) {
                     const cleanNew = stripOverlap(existingRaw, newChunk);
                     await updateDoc(doc(db, `chats/${currentChatId}/messages`, msgId), {
@@ -6130,12 +6274,12 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
                 clearTimeout(watchdog);
                 indicator.remove();
                 window.hideLoading();
+                window.hideThinkingIndicator(); // >>> THINKING_INDICATOR
                 isGenerating = false;
                 sendBtn.innerText = 'SEND';
                 sendBtn.classList.replace('bg-red-600', 'bg-blue-600');
                 sendBtn.classList.replace('hover:bg-red-500', 'hover:bg-blue-500');
                 currentAbortController = null;
-                // Only increment the counter if we actually got new content
                 if (gotFirstToken && !sentinelDetected) {
                     lastBot.dataset.continueCount = String(continueCount + 1);
                 }
@@ -6683,6 +6827,7 @@ INSTRUCTION: Provide a concise technical summary of the exchange above to be use
 
         async function loadSpecificChat(id) {
             currentChatId = id;
+            persistCurrentChatId(id); // >>> CHAT_PERSISTENCE
             userHasScrolledUp = false; // Reset scroll state for new chat
             window.closeTOC();
             
