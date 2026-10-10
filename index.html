@@ -866,9 +866,15 @@
                                     </button>
                                 </div>
                                 <div class="flex items-center justify-between p-2 hover:bg-gray-800/50 rounded transition-colors cursor-pointer" onclick="toggleBhagawanUvaach()">
-                                    <span class="text-[10px] text-yellow-300 font-bold uppercase">BHAGAWAN_UVAACH</span>
+                                    <span class="text-[10px] text-yellow-300 font-bold uppercase">GEETA_MODE</span>
                                     <button id="bhagawan-uvaach-toggle" class="relative inline-flex h-4 w-8 items-center rounded-full bg-gray-700 transition-colors focus:outline-none" role="switch" aria-checked="false" onclick="event.stopPropagation(); toggleBhagawanUvaach();">
                                         <span id="bhagawan-uvaach-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
+                                    </button>
+                                </div>
+                                <div class="flex items-center justify-between p-2 hover:bg-gray-800/50 rounded transition-colors cursor-pointer" onclick="toggleNumerologistMode()">
+                                    <span class="text-[10px] text-green-300 font-bold uppercase">AI_NUMEROLOGIST</span>
+                                    <button id="numerologist-toggle" class="relative inline-flex h-4 w-8 items-center rounded-full bg-gray-700 transition-colors focus:outline-none" role="switch" aria-checked="false" onclick="event.stopPropagation(); toggleNumerologistMode();">
+                                        <span id="numerologist-dot" class="inline-block h-3 w-3 transform rounded-full bg-white transition-transform translate-x-1"></span>
                                     </button>
                                 </div>
                             </div>
@@ -1074,7 +1080,8 @@
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>JSON_MODE</span> <span class="text-blue-400 font-bold">[ALT+J]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>PROMPT_GEN</span> <span class="text-blue-400 font-bold">[ALT+G]</span></div>
                         <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>INPUT_TO_FILE</span> <span class="text-blue-400 font-bold">[ALT+I]</span></div>
-                    <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>BHAGAWAN_UVAACH</span> <span class="text-blue-400 font-bold">[ALT+U]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>GEETA_MODE</span> <span class="text-blue-400 font-bold">[ALT+U]</span></div>
+                        <div class="flex justify-between border-b border-gray-800/50 pb-1"><span>AI_NUMEROLOGIST</span> <span class="text-blue-400 font-bold">[ALT+R]</span></div>
                     </div>
                 </section>
 
@@ -1379,6 +1386,18 @@
                     <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
                         <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">PROMPT_GEN</span>
                         <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+G</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">INPUT_TO_FILE</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+I</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">GEETA_MODE</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+U</kbd>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-black/40 rounded border border-gray-800">
+                        <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">AI_NUMEROLOGIST</span>
+                        <kbd class="px-2 py-1 bg-blue-600 text-white text-[10px] rounded font-bold min-w-[60px] text-center">ALT+R</kbd>
                     </div>
                 </div>
             </div>
@@ -1776,7 +1795,8 @@
                     case 'o': e.preventDefault(); window.togglePanel('about-panel'); break;
                     case 'g': e.preventDefault(); window.generateDetailedPrompt(); break;
                     case 'i': e.preventDefault(); window.convertInputToFile(); break;
-                case 'u': e.preventDefault(); window.toggleBhagawanUvaach(); break; // New shortcut for Bhagawan Uvaach
+                    case 'u': e.preventDefault(); window.toggleBhagawanUvaach(); break;
+                    case 'r': e.preventDefault(); window.toggleNumerologistMode(); break;
                 }
                 return; // Crucial: ensure altKey shortcuts don't fall through to global capture
             }
@@ -1848,8 +1868,10 @@
         let isJsonMode = false;
         let isRawMode = false;
         let isStreamingEnabled = true;
-        let isBhagawanUvaachMode = false; // New state for Bhagawan Uvaach mode
-        let bhagawanUvaachText = ""; // To store the content of bhagawad geeta knowledge.txt
+        let isBhagawanUvaachMode = false;
+        let isNumerologistMode = false; // New state for AI Numerologist mode
+        let bhagawanUvaachText = ""; 
+        let numerologyText = ""; // To store numerology knowledge
         let currentAbortController = null;
         let isSelectionMode = false;
         let showArchived = false;
@@ -2908,16 +2930,48 @@
                 dot.classList.remove('translate-x-1');
                 dot.classList.add('translate-x-4');
                 btn.setAttribute('aria-checked', 'true');
-                if (typeof forceValue !== 'boolean') window.showToast("BHAGAWAN_UVAACH_MODE_ENABLED", "info");
+                if (typeof forceValue !== 'boolean') window.showToast("GEETA_MODE_ENABLED", "info");
             } else {
                 btn.classList.remove('bg-blue-600');
                 btn.classList.add('bg-gray-700');
                 dot.classList.remove('translate-x-4');
                 dot.classList.add('translate-x-1');
                 btn.setAttribute('aria-checked', 'false');
-                if (typeof forceValue !== 'boolean') window.showToast("BHAGAWAN_UVAACH_MODE_DISABLED", "info");
+                if (typeof forceValue !== 'boolean') window.showToast("GEETA_MODE_DISABLED", "info");
             }
             if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('bhagawanUvaachMode', isBhagawanUvaachMode);
+        };
+
+        window.toggleNumerologistMode = async (forceValue) => {
+            if (typeof forceValue === 'boolean') {
+                isNumerologistMode = forceValue;
+            } else {
+                isNumerologistMode = !isNumerologistMode;
+            }
+            
+            const btn = document.getElementById('numerologist-toggle');
+            const dot = document.getElementById('numerologist-dot');
+            if (isNumerologistMode) {
+                if (!numerologyText) {
+                    window.showToast("NUMEROLOGY_TEXT_NOT_LOADED_YET", "error");
+                    isNumerologistMode = false; // Revert toggle if text not loaded
+                    return;
+                }
+                btn.classList.remove('bg-gray-700');
+                btn.classList.add('bg-blue-600');
+                dot.classList.remove('translate-x-1');
+                dot.classList.add('translate-x-4');
+                btn.setAttribute('aria-checked', 'true');
+                if (typeof forceValue !== 'boolean') window.showToast("AI_NUMEROLOGIST_MODE_ENABLED", "info");
+            } else {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+                dot.classList.remove('translate-x-4');
+                dot.classList.add('translate-x-1');
+                btn.setAttribute('aria-checked', 'false');
+                if (typeof forceValue !== 'boolean') window.showToast("AI_NUMEROLOGIST_MODE_DISABLED", "info");
+            }
+            if (currentUser && typeof forceValue !== 'boolean') saveUserPreference('numerologistMode', isNumerologistMode);
         };
 
         window.resetToDefaults = async () => {
@@ -2941,6 +2995,8 @@
             window.toggleJsonMode(false);
             window.toggleStreaming(true);
             window.toggleRawMode(false);
+            window.toggleBhagawanUvaach(false);
+            window.toggleNumerologistMode(false);
 
             // Reset parameters
             modelParams = { 
@@ -2983,7 +3039,8 @@
                         'preferences.jsonModeEnabled': false,
                         'preferences.rawModeEnabled': false,
                         'preferences.streamingEnabled': true,
-                        'preferences.bhagawanUvaachMode': false // Reset Bhagawan Uvaach mode
+                        'preferences.bhagawanUvaachMode': false,
+                        'preferences.numerologistMode': false
                     };
                     await updateDoc(doc(db, "users", currentUser.uid), batchUpdate);
                     userPrefs.defaultTextModel = defaultText;
@@ -2996,7 +3053,8 @@
                     userPrefs.parallelEnabled = false;
                     userPrefs.jsonModeEnabled = false;
                     userPrefs.rawModeEnabled = false;
-                    userPrefs.bhagawanUvaachMode = false; // Reset Bhagawan Uvaach mode
+                    userPrefs.bhagawanUvaachMode = false;
+                    userPrefs.numerologistMode = false;
                     window.showToast("PREFERENCES_RESET_TO_DEFAULTS", "success");
                 } catch (e) {
                     console.error("Reset failed:", e);
@@ -3408,23 +3466,33 @@
             }, 800);
         });
 
-        // Load Bhagawad Gita knowledge text
-        async function loadBhagawanUvaachText() {
+        // Load Bhagawad Gita and Numerology knowledge texts
+        async function loadKnowledgeBases() {
             try {
-                const response = await fetch('./bhagawad_geeta_knowledge.txt'); // Assuming file is in root
-                if (response.ok) {
-                    bhagawanUvaachText = await response.text();
+                const [geetaRes, numerologyRes] = await Promise.all([
+                    fetch('./bhagawad_geeta_knowledge.txt'),
+                    fetch('./knowledge_numerology.txt')
+                ]);
+
+                if (geetaRes.ok) {
+                    bhagawanUvaachText = await geetaRes.text();
                     console.log("BHAGAWAD_GEETA_TEXT_LOADED_SUCCESSFULLY");
                 } else {
-                    console.error("FAILED_TO_LOAD_BHAGAWAD_GEETA_TEXT:", response.status, response.statusText);
-                    window.showToast("FAILED_TO_LOAD_BHAGAWAD_GEETA_TEXT", "error");
+                    console.error("FAILED_TO_LOAD_BHAGAWAD_GEETA_TEXT:", geetaRes.status, geetaRes.statusText);
+                }
+
+                if (numerologyRes.ok) {
+                    numerologyText = await numerologyRes.text();
+                    console.log("NUMEROLOGY_TEXT_LOADED_SUCCESSFULLY");
+                } else {
+                    console.error("FAILED_TO_LOAD_NUMEROLOGY_TEXT:", numerologyRes.status, numerologyRes.statusText);
                 }
             } catch (error) {
-                console.error("ERROR_FETCHING_BHAGAWAD_GEETA_TEXT:", error);
-                window.showToast("ERROR_FETCHING_BHAGAWAD_GEETA_TEXT", "error");
+                console.error("ERROR_FETCHING_KNOWLEDGE_BASES:", error);
+                window.showToast("ERROR_FETCHING_KNOWLEDGE_BASES", "error");
             }
         }
-        document.addEventListener('DOMContentLoaded', loadBhagawanUvaachText);
+        document.addEventListener('DOMContentLoaded', loadKnowledgeBases);
 
         // --- ADMIN FUNCTIONS ---
         async function loadConfig() {
@@ -3492,7 +3560,7 @@
                         </button>
                     </div>
                 </div>
-            `;}).join('');
+            `}).join('');
         }
 
         window.filterUserList = () => {
@@ -3957,11 +4025,18 @@
                 window.toggleRawMode(false); // Default OFF
             }
             
-            // Load Bhagawan Uvaach mode preference
+            // Load Geeta mode preference
             if (userPrefs.bhagawanUvaachMode !== undefined) {
                 window.toggleBhagawanUvaach(userPrefs.bhagawanUvaachMode);
             } else {
                 window.toggleBhagawanUvaach(false); // Default OFF
+            }
+
+            // Load Numerologist mode preference
+            if (userPrefs.numerologistMode !== undefined) {
+                window.toggleNumerologistMode(userPrefs.numerologistMode);
+            } else {
+                window.toggleNumerologistMode(false); // Default OFF
             }
 
             // Load theme
@@ -4675,6 +4750,17 @@ ${bhagawanUvaachText}
 ------------------------------
 `;
                 effectiveSystemInstruction = { parts: [{ text: bhagawanPrompt }] };
+            } else if (isNumerologistMode && numerologyText) {
+                const numerologistPrompt = `You are an AI Numerologist, a master of the science of numbers as described in the provided text based on Harish Johari's work.
+Your task is to analyze a person's numbers (Psychic, Destiny, and Name) and provide insights based *solely* on the provided knowledge base.
+Ask for the person's full date of birth (DD/MM/YYYY) and their full name to calculate their numbers. If the user provides this information, calculate the numbers and then provide a detailed analysis.
+If the user does not provide complete information, ask for it clearly. Always cite the specific number characteristics and interactions from the provided text to support your analysis.
+
+--- Numerology Knowledge Base ---
+${numerologyText}
+----------------------------------
+`;
+                effectiveSystemInstruction = { parts: [{ text: numerologistPrompt }] };
             } else {
                 const rawSystemPrompt = document.getElementById('active-system-prompt')?.value.trim();
                 const systemPromptContent = processPromptVariables(rawSystemPrompt, prompt);
@@ -4824,6 +4910,19 @@ Speak in a compassionate, insightful, and authoritative tone.
 --- Bhagavad Gita Teachings ---
 ${bhagawanUvaachText}
 ------------------------------
+`
+                });
+            } else if (isNumerologistMode && numerologyText) {
+                messages.push({ 
+                    role: "system", 
+                    content: `You are an AI Numerologist, a master of the science of numbers as described in the provided text based on Harish Johari's work.
+Your task is to analyze a person's numbers (Psychic, Destiny, and Name) and provide insights based *solely* on the provided knowledge base.
+Ask for the person's full date of birth (DD/MM/YYYY) and their full name to calculate their numbers. If the user provides this information, calculate the numbers and then provide a detailed analysis.
+If the user does not provide complete information, ask for it clearly. Always cite the specific number characteristics and interactions from the provided text to support your analysis.
+
+--- Numerology Knowledge Base ---
+${numerologyText}
+----------------------------------
 `
                 });
             } else {
